@@ -361,7 +361,7 @@ const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = 
           {/* ── 3D Model Yükle ── */}
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 14 }}>
             <div className="flex items-center gap-2 mb-2">
-              <span style={{ ...labelStyle, marginBottom: 0 }}>3D Model (.glb)</span>
+              <span style={{ ...labelStyle, marginBottom: 0 }}>3D Model (.fbx)</span>
               <span style={{ fontSize: 10, color: '#8b5cf6', background: 'rgba(139,92,246,0.15)', padding: '1px 7px', borderRadius: 20, fontWeight: 600 }}>
                 Sanal Giydirme
               </span>
@@ -380,12 +380,12 @@ const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = 
               ) : (
                 <div className="flex flex-col items-center gap-1 opacity-40">
                   <span className="text-2xl">📦</span>
-                  <span style={{ fontSize: 12 }}>GLB dosyası seçin</span>
+                  <span style={{ fontSize: 12 }}>FBX dosyası seçin</span>
                   <span style={{ fontSize: 10 }}>Gerçekçi 3D sanal giydirme</span>
                 </div>
               )}
             </div>
-            <input ref={modelRef} type="file" accept=".glb,.gltf" className="hidden" onChange={handleModelFile} />
+            <input ref={modelRef} type="file" accept=".fbx" className="hidden" onChange={handleModelFile} />
             {modelError && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 6 }}>{modelError}</p>}
             {form.modelUrl && (
               <p style={{ fontSize: 10, color: '#555', marginTop: 4 }}>

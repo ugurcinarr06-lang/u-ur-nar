@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { Product } from '../../types';
 
 interface Props {
@@ -41,7 +41,7 @@ function base64ToObjectURL(dataUrl: string): string {
   const bytes = atob(base64);
   const buf = new Uint8Array(bytes.length);
   for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
-  const blob = new Blob([buf], { type: 'model/gltf-binary' });
+  const blob = new Blob([buf], { type: 'application/octet-stream' });
   return URL.createObjectURL(blob);
 }
 
@@ -93,7 +93,7 @@ const ThreeDGarmentViewer: React.FC<Props> = ({ product, rotationDeg }) => {
     scene.add(back);
 
     // ── Model Yükle ──────────────────────────────────────────────
-    const loader = new GLTFLoader();
+    const loader = new FBXLoader();
     let objectUrl = '';
 
     if (product.modelUrl.startsWith('data:') || product.modelUrl.startsWith('blob:')) {
@@ -106,10 +106,8 @@ const ThreeDGarmentViewer: React.FC<Props> = ({ product, rotationDeg }) => {
 
     loader.load(
       objectUrl,
-      (gltf) => {
+      (model) => {
         if (objectUrl.startsWith('blob:')) URL.revokeObjectURL(objectUrl);
-
-        const model = gltf.scene;
 
         // Bounding box → otomatik ölçekleme
         const box  = new THREE.Box3().setFromObject(model);
