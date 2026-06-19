@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MirrorState, Product } from '../../types';
-import { PRODUCTS, CATEGORIES } from '../../data';
 
 interface Props {
   sharedProduct: Product | null;
@@ -9,8 +8,10 @@ interface Props {
   sharedSize: string | null;
   onSessionStart: () => void;
   sessionActive: boolean;
+  rotation?: number; // -1 left, 0 center, 1 right
 }
 
+// ── QR Kodu ──────────────────────────────────────────────────────────────────
 const QR_PIXELS = [
   [1,1,1,1,1,1,1,0,1,0,1,0,1,1,1,1,1,1,1],
   [1,0,0,0,0,0,1,0,0,1,0,1,1,0,0,0,0,0,1],
@@ -34,117 +35,304 @@ const QR_PIXELS = [
 
 const QRCode: React.FC = () => (
   <div className="inline-block p-3 rounded-xl" style={{ background: 'white' }}>
-    <div className="grid gap-0" style={{ gridTemplateColumns: `repeat(${QR_PIXELS[0].length}, 8px)` }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${QR_PIXELS[0].length}, 7px)`, gap: 0 }}>
       {QR_PIXELS.flat().map((px, i) => (
-        <div key={i} style={{ width: 8, height: 8, background: px ? '#000' : 'transparent' }} />
+        <div key={i} style={{ width: 7, height: 7, background: px ? '#000' : 'transparent' }} />
       ))}
     </div>
   </div>
 );
 
-const BodyTrackOverlay: React.FC<{ product: Product; colorHex: string }> = ({ product, colorHex }) => {
-  const landmarks = [
-    { x: 50, y: 18, label: 'head' },
-    { x: 50, y: 30, label: 'neck' },
-    { x: 35, y: 37, label: 'l-shoulder' },
-    { x: 65, y: 37, label: 'r-shoulder' },
-    { x: 28, y: 52, label: 'l-elbow' },
-    { x: 72, y: 52, label: 'r-elbow' },
-    { x: 25, y: 67, label: 'l-wrist' },
-    { x: 75, y: 67, label: 'r-wrist' },
-    { x: 42, y: 62, label: 'l-hip' },
-    { x: 58, y: 62, label: 'r-hip' },
-    { x: 40, y: 80, label: 'l-knee' },
-    { x: 60, y: 80, label: 'r-knee' },
-    { x: 38, y: 96, label: 'l-ankle' },
-    { x: 62, y: 96, label: 'r-ankle' },
-  ];
-  const skeleton = [
-    [1,2],[2,3],[2,4],[3,5],[4,6],[5,7],[6,8],[2,9],[2,10],[9,11],[10,12],[11,13],[12,14]
-  ];
+// ── İnsan Silueti SVG ─────────────────────────────────────────────────────────
+const BodySilhouette: React.FC<{ rotationDeg: number }> = ({ rotationDeg }) => (
+  <svg
+    viewBox="0 0 200 480"
+    style={{
+      width: '100%', height: '100%',
+      transform: `rotateY(${rotationDeg}deg)`,
+      transition: 'transform 0.6s ease',
+      filter: 'drop-shadow(0 0 20px rgba(59,130,246,0.15))',
+    }}
+  >
+    {/* Baş */}
+    <ellipse cx="100" cy="52" rx="28" ry="32" fill="rgba(255,255,255,0.08)" stroke="rgba(59,130,246,0.3)" strokeWidth="1" />
+    {/* Boyun */}
+    <rect x="90" y="82" width="20" height="18" rx="4" fill="rgba(255,255,255,0.07)" stroke="rgba(59,130,246,0.25)" strokeWidth="1" />
+    {/* Gövde */}
+    <path d="M55 100 Q40 110 38 150 L38 250 Q38 265 55 268 L145 268 Q162 265 162 250 L162 150 Q160 110 145 100 Z"
+      fill="rgba(255,255,255,0.06)" stroke="rgba(59,130,246,0.2)" strokeWidth="1" />
+    {/* Sol kol */}
+    <path d="M55 108 Q32 118 25 155 L22 210 Q20 220 28 222 L40 222 Q46 220 48 210 L52 165 Q56 140 60 125 Z"
+      fill="rgba(255,255,255,0.05)" stroke="rgba(59,130,246,0.18)" strokeWidth="1" />
+    {/* Sağ kol */}
+    <path d="M145 108 Q168 118 175 155 L178 210 Q180 220 172 222 L160 222 Q154 220 152 210 L148 165 Q144 140 140 125 Z"
+      fill="rgba(255,255,255,0.05)" stroke="rgba(59,130,246,0.18)" strokeWidth="1" />
+    {/* Sol el */}
+    <ellipse cx="29" cy="228" rx="9" ry="12" fill="rgba(255,255,255,0.06)" stroke="rgba(59,130,246,0.15)" strokeWidth="1" />
+    {/* Sağ el */}
+    <ellipse cx="171" cy="228" rx="9" ry="12" fill="rgba(255,255,255,0.06)" stroke="rgba(59,130,246,0.15)" strokeWidth="1" />
+    {/* Bel/kalça */}
+    <path d="M48 265 Q38 280 36 310 L36 350 Q38 358 52 360 L148 360 Q162 358 164 350 L164 310 Q162 280 152 265 Z"
+      fill="rgba(255,255,255,0.05)" stroke="rgba(59,130,246,0.15)" strokeWidth="1" />
+    {/* Sol bacak */}
+    <path d="M52 355 L48 435 Q47 448 56 450 L82 450 Q90 448 90 435 L88 355 Z"
+      fill="rgba(255,255,255,0.05)" stroke="rgba(59,130,246,0.12)" strokeWidth="1" />
+    {/* Sağ bacak */}
+    <path d="M148 355 L152 435 Q153 448 144 450 L118 450 Q110 448 110 435 L112 355 Z"
+      fill="rgba(255,255,255,0.05)" stroke="rgba(59,130,246,0.12)" strokeWidth="1" />
+    {/* Sol ayak */}
+    <ellipse cx="66" cy="456" rx="16" ry="8" fill="rgba(255,255,255,0.06)" stroke="rgba(59,130,246,0.12)" strokeWidth="1" />
+    {/* Sağ ayak */}
+    <ellipse cx="134" cy="456" rx="16" ry="8" fill="rgba(255,255,255,0.06)" stroke="rgba(59,130,246,0.12)" strokeWidth="1" />
+  </svg>
+);
 
-  const isUpper = ['cat-1','cat-2','cat-4','cat-5'].includes(product.categoryId);
-  const isLower = ['cat-3','cat-6'].includes(product.categoryId);
+// ── Kıyafet Overlay'leri ──────────────────────────────────────────────────────
+const TShirtOverlay: React.FC<{ color: string; rotationDeg: number }> = ({ color, rotationDeg }) => (
+  <svg viewBox="0 0 200 480" style={{
+    position: 'absolute', inset: 0, width: '100%', height: '100%',
+    transform: `rotateY(${rotationDeg}deg)`,
+    transition: 'transform 0.6s ease',
+    filter: `drop-shadow(0 4px 16px ${color}55)`,
+  }}>
+    <defs>
+      <linearGradient id="tshirt-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor={color} stopOpacity="0.95" />
+        <stop offset="50%" stopColor={color} stopOpacity="0.85" />
+        <stop offset="100%" stopColor={color} stopOpacity="0.75" />
+      </linearGradient>
+      <linearGradient id="tshirt-shadow" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="rgba(0,0,0,0.3)" stopOpacity="1" />
+        <stop offset="30%" stopColor="rgba(0,0,0,0)" stopOpacity="0" />
+        <stop offset="70%" stopColor="rgba(0,0,0,0)" stopOpacity="0" />
+        <stop offset="100%" stopColor="rgba(0,0,0,0.3)" stopOpacity="1" />
+      </linearGradient>
+    </defs>
+    {/* Ana tişört gövdesi */}
+    <path d="M57 100 Q42 112 40 148 L40 258 Q40 268 57 270 L143 270 Q160 268 160 258 L160 148 Q158 112 143 100 L125 96 Q112 108 100 108 Q88 108 75 96 Z"
+      fill="url(#tshirt-grad)" />
+    {/* Sol kol */}
+    <path d="M57 100 L75 96 Q64 120 58 148 L42 160 Q35 155 32 148 Q30 128 38 112 Z"
+      fill="url(#tshirt-grad)" opacity="0.9" />
+    {/* Sağ kol */}
+    <path d="M143 100 L125 96 Q136 120 142 148 L158 160 Q165 155 168 148 Q170 128 162 112 Z"
+      fill="url(#tshirt-grad)" opacity="0.9" />
+    {/* Yaka */}
+    <path d="M75 96 Q88 108 100 108 Q112 108 125 96 Q112 90 100 90 Q88 90 75 96 Z"
+      fill={color} opacity="0.7" />
+    {/* Gölge & derinlik */}
+    <path d="M57 100 Q42 112 40 148 L40 258 Q40 268 57 270 L143 270 Q160 268 160 258 L160 148 Q158 112 143 100 L125 96 Q112 108 100 108 Q88 108 75 96 Z"
+      fill="url(#tshirt-shadow)" />
+    {/* Kıvrım çizgileri */}
+    <path d="M100 108 L100 270" stroke="rgba(0,0,0,0.08)" strokeWidth="1" fill="none" />
+    <path d="M75 140 Q100 145 125 140" stroke="rgba(0,0,0,0.06)" strokeWidth="1" fill="none" />
+    <path d="M72 180 Q100 186 128 180" stroke="rgba(0,0,0,0.05)" strokeWidth="1" fill="none" />
+    <path d="M70 220 Q100 226 130 220" stroke="rgba(0,0,0,0.05)" strokeWidth="1" fill="none" />
+  </svg>
+);
 
+const ShirtOverlay: React.FC<{ color: string; rotationDeg: number }> = ({ color, rotationDeg }) => (
+  <svg viewBox="0 0 200 480" style={{
+    position: 'absolute', inset: 0, width: '100%', height: '100%',
+    transform: `rotateY(${rotationDeg}deg)`, transition: 'transform 0.6s ease',
+    filter: `drop-shadow(0 4px 16px ${color}55)`,
+  }}>
+    <defs>
+      <linearGradient id="shirt-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor={color} stopOpacity="0.95" />
+        <stop offset="100%" stopColor={color} stopOpacity="0.75" />
+      </linearGradient>
+    </defs>
+    {/* Gövde */}
+    <path d="M57 98 Q42 112 40 148 L40 268 Q40 272 57 274 L143 274 Q160 272 160 268 L160 148 Q158 112 143 98 L128 94 Q118 104 100 104 Q82 104 72 94 Z"
+      fill="url(#shirt-grad)" />
+    {/* Sol kol (uzun) */}
+    <path d="M57 98 L72 94 Q60 124 52 155 L30 210 Q24 218 26 225 L38 225 Q44 218 48 210 L56 158 Q62 128 66 108 Z"
+      fill="url(#shirt-grad)" opacity="0.9" />
+    {/* Sağ kol (uzun) */}
+    <path d="M143 98 L128 94 Q140 124 148 155 L170 210 Q176 218 174 225 L162 225 Q156 218 152 210 L144 158 Q138 128 134 108 Z"
+      fill="url(#shirt-grad)" opacity="0.9" />
+    {/* Yaka & düğme bandı */}
+    <path d="M82 94 Q91 102 100 102 Q109 102 118 94" fill="none" stroke={color} strokeWidth="3" opacity="0.6" />
+    <line x1="100" y1="104" x2="100" y2="274" stroke="rgba(0,0,0,0.12)" strokeWidth="2" />
+    {[130,155,180,205,230].map((y,i) => (
+      <circle key={i} cx="100" cy={y} r="3" fill="rgba(0,0,0,0.2)" />
+    ))}
+    {/* Manşet */}
+    <line x1="26" y1="218" x2="38" y2="220" stroke="rgba(0,0,0,0.2)" strokeWidth="3" />
+    <line x1="162" y1="220" x2="174" y2="218" stroke="rgba(0,0,0,0.2)" strokeWidth="3" />
+    <path d="M57 98 Q42 112 40 148 L40 268 Q40 272 57 274 L143 274 Q160 272 160 268 L160 148 Q158 112 143 98 L128 94 Q118 104 100 104 Q82 104 72 94 Z"
+      fill="linear-gradient(180deg, rgba(0,0,0,0.15), transparent)" opacity="0.3" />
+  </svg>
+);
+
+const DressOverlay: React.FC<{ color: string; rotationDeg: number }> = ({ color, rotationDeg }) => (
+  <svg viewBox="0 0 200 480" style={{
+    position: 'absolute', inset: 0, width: '100%', height: '100%',
+    transform: `rotateY(${rotationDeg}deg)`, transition: 'transform 0.6s ease',
+    filter: `drop-shadow(0 4px 20px ${color}55)`,
+  }}>
+    <defs>
+      <linearGradient id="dress-grad" x1="0%" y1="0%" x2="30%" y2="100%">
+        <stop offset="0%" stopColor={color} stopOpacity="0.95" />
+        <stop offset="60%" stopColor={color} stopOpacity="0.88" />
+        <stop offset="100%" stopColor={color} stopOpacity="0.8" />
+      </linearGradient>
+    </defs>
+    {/* Elbise gövdesi - A-line */}
+    <path d="M72 92 Q58 104 52 130 L48 200 Q45 230 42 270 L30 430 Q28 445 50 448 L150 448 Q172 445 170 430 L158 270 Q155 230 152 200 L148 130 Q142 104 128 92 Q114 102 100 102 Q86 102 72 92 Z"
+      fill="url(#dress-grad)" />
+    {/* İnce askılar */}
+    <path d="M84 92 L78 70" stroke={color} strokeWidth="6" strokeLinecap="round" opacity="0.9" />
+    <path d="M116 92 L122 70" stroke={color} strokeWidth="6" strokeLinecap="round" opacity="0.9" />
+    {/* Bel çizgisi */}
+    <path d="M50 200 Q100 210 150 200" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5" />
+    {/* Etek dalgalanması */}
+    <path d="M42 320 Q60 310 80 322 Q100 334 120 322 Q140 310 158 320" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+    <path d="M38 370 Q60 358 85 372 Q110 386 135 372 Q158 358 162 370" fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
+    {/* Işık/gölge */}
+    <path d="M72 92 Q58 104 52 130 L48 200 L55 200 L60 130 Q66 105 78 94 Z" fill="rgba(255,255,255,0.08)" />
+    <path d="M128 92 Q142 104 148 130 L152 200 L145 200 L140 130 Q134 105 122 94 Z" fill="rgba(0,0,0,0.08)" />
+  </svg>
+);
+
+const JacketOverlay: React.FC<{ color: string; rotationDeg: number }> = ({ color, rotationDeg }) => (
+  <svg viewBox="0 0 200 480" style={{
+    position: 'absolute', inset: 0, width: '100%', height: '100%',
+    transform: `rotateY(${rotationDeg}deg)`, transition: 'transform 0.6s ease',
+    filter: `drop-shadow(0 4px 20px ${color}66)`,
+  }}>
+    <defs>
+      <linearGradient id="jacket-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor={color} stopOpacity="0.95" />
+        <stop offset="100%" stopColor={color} stopOpacity="0.8" />
+      </linearGradient>
+    </defs>
+    {/* Sol dış panel */}
+    <path d="M57 96 Q42 110 38 148 L38 270 L95 270 L95 105 Q86 103 72 96 Z"
+      fill={color} opacity="0.92" />
+    {/* Sağ dış panel */}
+    <path d="M143 96 Q158 110 162 148 L162 270 L105 270 L105 105 Q114 103 128 96 Z"
+      fill={color} opacity="0.85" />
+    {/* Sol kol */}
+    <path d="M57 96 L72 96 Q60 126 54 158 L32 215 Q26 224 28 230 L40 230 Q46 222 50 215 L58 160 Q64 128 68 110 Z"
+      fill={color} opacity="0.9" />
+    {/* Sağ kol */}
+    <path d="M143 96 L128 96 Q140 126 146 158 L168 215 Q174 224 172 230 L160 230 Q154 222 150 215 L142 160 Q136 128 132 110 Z"
+      fill={color} opacity="0.85" />
+    {/* Yaka sol */}
+    <path d="M72 96 Q84 104 100 108 L95 270 L90 270 L85 160 Q76 128 72 96 Z"
+      fill="rgba(255,255,255,0.07)" />
+    {/* Revers/yakalar */}
+    <path d="M100 108 L85 130 L80 270 L95 270 Z" fill="rgba(255,255,255,0.1)" />
+    <path d="M100 108 L115 130 L120 270 L105 270 Z" fill="rgba(0,0,0,0.08)" />
+    {/* Orta dikiş */}
+    <line x1="100" y1="108" x2="100" y2="270" stroke="rgba(0,0,0,0.25)" strokeWidth="2" />
+    {/* Düğmeler */}
+    {[150,175,200,225].map((y,i) => (
+      <circle key={i} cx="100" cy={y} r="3.5" fill="rgba(0,0,0,0.3)" />
+    ))}
+    {/* Manşetler */}
+    <rect x="26" y="222" width="14" height="10" rx="2" fill={color} stroke="rgba(0,0,0,0.2)" strokeWidth="1" />
+    <rect x="160" y="222" width="14" height="10" rx="2" fill={color} stroke="rgba(0,0,0,0.2)" strokeWidth="1" />
+    {/* Cep */}
+    <rect x="55" y="210" width="22" height="14" rx="3" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+    <rect x="123" y="210" width="22" height="14" rx="3" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+  </svg>
+);
+
+const SuitOverlay: React.FC<{ color: string; rotationDeg: number }> = ({ color, rotationDeg }) => (
+  <svg viewBox="0 0 200 480" style={{
+    position: 'absolute', inset: 0, width: '100%', height: '100%',
+    transform: `rotateY(${rotationDeg}deg)`, transition: 'transform 0.6s ease',
+    filter: `drop-shadow(0 4px 20px ${color}66)`,
+  }}>
+    {/* Takım alt (pantolon) */}
+    <path d="M52 270 L48 435 Q47 445 58 448 L82 448 Q90 446 90 435 L88 338 L100 338 L112 435 Q112 446 118 448 L142 448 Q153 445 152 435 L148 270 Z"
+      fill={color} opacity="0.82" />
+    {/* Ceket sol */}
+    <path d="M57 96 Q42 110 38 148 L38 275 L95 275 L95 105 Q86 103 72 96 Z"
+      fill={color} opacity="0.95" />
+    {/* Ceket sağ */}
+    <path d="M143 96 Q158 110 162 148 L162 275 L105 275 L105 105 Q114 103 128 96 Z"
+      fill={color} opacity="0.88" />
+    {/* Sol kol */}
+    <path d="M57 96 L72 96 Q58 128 52 160 L30 215 Q24 224 26 230 L38 230 Q44 222 48 215 L56 162 Q62 130 66 110 Z"
+      fill={color} opacity="0.9" />
+    {/* Sağ kol */}
+    <path d="M143 96 L128 96 Q142 128 148 160 L170 215 Q176 224 174 230 L162 230 Q156 222 152 215 L144 162 Q138 130 134 110 Z"
+      fill={color} opacity="0.85" />
+    {/* Göğüs cepleri */}
+    <rect x="60" y="130" width="20" height="12" rx="2" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+    {/* Revers */}
+    <path d="M100 108 L82 135 L78 275 L95 275 Z" fill="rgba(255,255,255,0.06)" />
+    <path d="M100 108 L118 135 L122 275 L105 275 Z" fill="rgba(0,0,0,0.06)" />
+    {/* Kravat */}
+    <path d="M97 110 L100 120 L103 110 L101 140 L100 270 L99 140 Z" fill="#b91c1c" opacity="0.85" />
+    <path d="M97 110 L100 120 L103 110 Z" fill="#7f1d1d" opacity="0.9" />
+    {/* Ceket dikişi */}
+    <line x1="100" y1="108" x2="100" y2="275" stroke="rgba(0,0,0,0.2)" strokeWidth="1.5" />
+    {/* Düğmeler */}
+    {[155,180].map((y,i) => (
+      <circle key={i} cx="100" cy={y} r="3.5" fill="rgba(0,0,0,0.35)" />
+    ))}
+  </svg>
+);
+
+// Kategori bazlı overlay seçimi
+const GarmentOverlay: React.FC<{ product: Product; colorHex: string; rotationDeg: number }> = ({ product, colorHex, rotationDeg }) => {
+  switch (product.categoryId) {
+    case 'cat-1': return <TShirtOverlay color={colorHex} rotationDeg={rotationDeg} />;
+    case 'cat-2': return <ShirtOverlay color={colorHex} rotationDeg={rotationDeg} />;
+    case 'cat-3': return <DressOverlay color={colorHex} rotationDeg={rotationDeg} />;
+    case 'cat-4': return <JacketOverlay color={colorHex} rotationDeg={rotationDeg} />;
+    case 'cat-5': return <SuitOverlay color={colorHex} rotationDeg={rotationDeg} />;
+    default: return <TShirtOverlay color={colorHex} rotationDeg={rotationDeg} />;
+  }
+};
+
+// ── Body Tracking Noktaları ───────────────────────────────────────────────────
+const TrackingOverlay: React.FC = () => {
+  const points = [
+    { x: 100, y: 52 }, { x: 100, y: 88 },
+    { x: 57, y: 105 }, { x: 143, y: 105 },
+    { x: 36, y: 170 }, { x: 164, y: 170 },
+    { x: 29, y: 228 }, { x: 171, y: 228 },
+    { x: 66, y: 272 }, { x: 134, y: 272 },
+    { x: 60, y: 350 }, { x: 140, y: 350 },
+    { x: 58, y: 448 }, { x: 142, y: 448 },
+  ];
+  const bones = [
+    [0,1],[1,2],[1,3],[2,4],[3,5],[4,6],[5,7],[2,8],[3,9],[8,10],[9,11],[10,12],[11,13]
+  ];
   return (
-    <div className="absolute inset-0 pointer-events-none">
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-        {/* Skeleton lines */}
-        {skeleton.map(([a, b], i) => {
-          const la = landmarks[a]; const lb = landmarks[b];
-          return (
-            <line key={i}
-              x1={la.x} y1={la.y} x2={lb.x} y2={lb.y}
-              stroke="rgba(59,130,246,0.4)" strokeWidth="0.4"
-            />
-          );
-        })}
-        {/* Landmarks */}
-        {landmarks.map((lm, i) => (
-          <circle key={i} cx={lm.x} cy={lm.y} r="0.8"
-            fill="#3b82f6" opacity="0.7"
-            className="animate-body-track"
-            style={{ animationDelay: `${i * 0.1}s` }}
-          />
-        ))}
-      </svg>
-
-      {/* Garment overlay */}
-      {isUpper && (
-        <div
-          className="absolute animate-float"
-          style={{
-            top: '28%', left: '25%', width: '50%', height: '38%',
-            background: `radial-gradient(ellipse, ${colorHex}88 0%, ${colorHex}44 50%, transparent 100%)`,
-            filter: 'blur(2px)',
-            mixBlendMode: 'color-dodge',
-          }}
+    <svg viewBox="0 0 200 480" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+      {bones.map(([a,b], i) => (
+        <line key={i}
+          x1={points[a].x} y1={points[a].y}
+          x2={points[b].x} y2={points[b].y}
+          stroke="rgba(59,130,246,0.35)" strokeWidth="0.8"
         />
-      )}
-      {isLower && (
-        <div
-          className="absolute animate-float"
-          style={{
-            top: '55%', left: '30%', width: '40%', height: '40%',
-            background: `radial-gradient(ellipse, ${colorHex}88 0%, ${colorHex}44 50%, transparent 100%)`,
-            filter: 'blur(2px)',
-            mixBlendMode: 'color-dodge',
-            animationDelay: '0.5s',
-          }}
+      ))}
+      {points.map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r="2.5"
+          fill="#3b82f6" opacity="0.7"
+          style={{ animation: `body-track 1.5s ${i * 0.08}s ease-in-out infinite` }}
         />
-      )}
-
-      {/* AI processing indicator */}
-      <div className="absolute top-6 right-6 flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-        <span className="text-xs font-mono text-green-400 opacity-80">AI TRACKING</span>
-      </div>
-
-      {/* Body metrics */}
-      <div className="absolute bottom-6 left-6 flex flex-col gap-1">
-        {[
-          { label: 'POSE', value: '98.2%' },
-          { label: 'BODY', value: 'DETECTED' },
-          { label: 'FPS', value: '60' },
-        ].map(m => (
-          <div key={m.label} className="flex items-center gap-2">
-            <span className="text-xs font-mono" style={{ color: 'rgba(59,130,246,0.7)', minWidth: 48 }}>{m.label}</span>
-            <span className="text-xs font-mono text-green-400">{m.value}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+      ))}
+    </svg>
   );
 };
 
+// ── Ana Mirror App ─────────────────────────────────────────────────────────────
 export const MirrorApp: React.FC<Props> = ({
-  sharedProduct, sharedColor, sharedSize, onSessionStart, sessionActive
+  sharedProduct, sharedColor, sharedSize, onSessionStart, sessionActive, rotation = 0
 }) => {
   const [mirrorState, setMirrorState] = useState<MirrorState>('IDLE');
   const [time, setTime] = useState(new Date());
-  const [particles, setParticles] = useState<{ id: number; x: number; delay: number; dur: number }[]>([]);
-  const [scanLine, setScanLine] = useState(0);
   const [aiProgress, setAiProgress] = useState(0);
+  const [showTracking, setShowTracking] = useState(false);
+  const [rotationDeg, setRotationDeg] = useState(0);
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -152,15 +340,8 @@ export const MirrorApp: React.FC<Props> = ({
   }, []);
 
   useEffect(() => {
-    setParticles(Array.from({ length: 18 }, (_, i) => ({
-      id: i, x: Math.random() * 100,
-      delay: Math.random() * 6, dur: 6 + Math.random() * 8
-    })));
-  }, []);
-
-  useEffect(() => {
     if (mirrorState === 'IDLE') {
-      const t = setTimeout(() => setMirrorState('QR_DISPLAYED'), 2000);
+      const t = setTimeout(() => setMirrorState('QR_DISPLAYED'), 1500);
       return () => clearTimeout(t);
     }
   }, []);
@@ -168,285 +349,297 @@ export const MirrorApp: React.FC<Props> = ({
   useEffect(() => {
     if (sessionActive && mirrorState === 'QR_DISPLAYED') {
       setMirrorState('SESSION_CONNECTING');
-      setTimeout(() => { setMirrorState('SESSION_ACTIVE'); onSessionStart(); }, 1800);
+      setTimeout(() => { setMirrorState('SESSION_ACTIVE'); onSessionStart(); }, 1600);
     }
   }, [sessionActive]);
 
   useEffect(() => {
-    if (sharedProduct && mirrorState === 'SESSION_ACTIVE') {
+    if (sharedProduct && (mirrorState === 'SESSION_ACTIVE' || mirrorState === 'TRYON_ACTIVE')) {
       setMirrorState('TRYON_ACTIVE');
       setAiProgress(0);
+      setShowTracking(false);
       let p = 0;
       const t = setInterval(() => {
-        p += Math.random() * 15 + 8;
+        p += Math.random() * 18 + 10;
         setAiProgress(Math.min(p, 100));
+        if (p > 35) setShowTracking(true);
         if (p >= 100) clearInterval(t);
-      }, 120);
+      }, 80);
       return () => clearInterval(t);
     }
-  }, [sharedProduct]);
+  }, [sharedProduct, sharedColor]);
+
+  // Rotation prop değişince animasyon
+  useEffect(() => {
+    setRotationDeg(rotation * 28);
+    const t = setTimeout(() => setRotationDeg(0), 900);
+    return () => clearTimeout(t);
+  }, [rotation]);
 
   const selectedColor = sharedProduct?.colors.find(c => c.id === sharedColor)
     ?? sharedProduct?.colors[0];
 
   return (
-    <div className="relative w-full h-full overflow-hidden mirror-frame flex flex-col items-center justify-center select-none"
-      style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #070b14 0%, #0d1829 50%, #060e1f 100%)' }}
-    >
-      {/* Ambient particles */}
-      {particles.map(p => (
-        <div key={p.id}
-          className="absolute w-px rounded-full pointer-events-none"
-          style={{
-            left: `${p.x}%`, bottom: '-20px', height: `${20 + Math.random() * 60}px`,
-            background: `linear-gradient(transparent, rgba(59,130,246,${0.1 + Math.random() * 0.3}), transparent)`,
-            animation: `particle-float ${p.dur}s ${p.delay}s infinite linear`,
-          }}
-        />
+    <div className="relative w-full h-full overflow-hidden flex flex-col items-center justify-center"
+      style={{ background: 'linear-gradient(145deg, #050912 0%, #0a1428 50%, #050810 100%)', minHeight: '100vh' }}>
+
+      {/* Ambient arka plan ışıkları */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full opacity-10"
+          style={{ background: 'radial-gradient(circle, #3b82f6, transparent)', transform: 'translate(-50%,-50%)' }} />
+        <div className="absolute bottom-1/4 right-1/4 w-48 h-48 rounded-full opacity-8"
+          style={{ background: 'radial-gradient(circle, #8b5cf6, transparent)', transform: 'translate(50%,50%)' }} />
+      </div>
+
+      {/* Köşe dekorasyonları */}
+      {[
+        'top-3 left-3 border-t-2 border-l-2',
+        'top-3 right-3 border-t-2 border-r-2',
+        'bottom-3 left-3 border-b-2 border-l-2',
+        'bottom-3 right-3 border-b-2 border-r-2'
+      ].map((cls, i) => (
+        <div key={i} className={`absolute w-8 h-8 ${cls} pointer-events-none`}
+          style={{ borderColor: 'rgba(59,130,246,0.4)' }} />
       ))}
 
-      {/* Corner decorations */}
-      {['top-4 left-4', 'top-4 right-4', 'bottom-4 left-4', 'bottom-4 right-4'].map((pos, i) => (
-        <div key={i} className={`absolute ${pos} w-8 h-8 pointer-events-none`}>
-          <div className={`absolute w-6 h-0.5 bg-blue-500 opacity-60 ${i % 2 === 0 ? 'left-0' : 'right-0'}`} />
-          <div className={`absolute h-6 w-0.5 bg-blue-500 opacity-60 ${i < 2 ? 'top-0' : 'bottom-0'} ${i % 2 === 0 ? 'left-0' : 'right-0'}`} />
-        </div>
-      ))}
-
-      {/* Top status bar */}
-      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-3 z-10"
-        style={{ borderBottom: '1px solid rgba(59,130,246,0.12)' }}>
+      {/* Üst durum çubuğu */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-5 py-2.5 z-20"
+        style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(59,130,246,0.1)' }}>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-          <span className="text-xs font-mono text-blue-400 opacity-80">SIRIUS MIRROR v3.2.1</span>
+          <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+          <span className="text-xs font-mono" style={{ color: 'rgba(59,130,246,0.8)' }}>SIRIUS MIRROR v3.2.1</span>
         </div>
-        <div className="text-xs font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>
+        <span className="text-xs font-mono" style={{ color: 'rgba(255,255,255,0.25)' }}>
           {time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-        </div>
+        </span>
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-xs font-mono text-green-400 opacity-80">ONLINE</span>
+          <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+          <span className="text-xs font-mono text-green-400">ONLINE</span>
         </div>
       </div>
 
       <AnimatePresence mode="wait">
-        {/* IDLE STATE */}
+
+        {/* ── IDLE ── */}
         {mirrorState === 'IDLE' && (
-          <motion.div key="idle" className="flex flex-col items-center justify-center gap-8"
+          <motion.div key="idle" className="flex flex-col items-center gap-6"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full animate-rotate-slow"
-                style={{ background: 'conic-gradient(from 0deg, transparent, rgba(59,130,246,0.3), transparent)', width: 200, height: 200, margin: -20 }} />
-              <div className="text-8xl animate-float">🪞</div>
-            </div>
-            <div className="text-center">
-              <h1 className="text-6xl font-bold tracking-tight gradient-text">SIRIUS MIRROR</h1>
-              <p className="text-lg mt-2 font-light" style={{ color: 'rgba(255,255,255,0.4)' }}>Initializing AI System...</p>
-            </div>
+            <div className="text-7xl animate-float">🪞</div>
+            <h1 className="text-5xl font-bold gradient-text">SIRIUS MIRROR</h1>
+            <p className="text-base" style={{ color: 'rgba(255,255,255,0.3)' }}>Sistem başlatılıyor...</p>
           </motion.div>
         )}
 
-        {/* QR DISPLAYED */}
+        {/* ── QR GÖSTER ── */}
         {mirrorState === 'QR_DISPLAYED' && (
-          <motion.div key="qr" className="flex flex-col items-center justify-center gap-10 text-center px-8"
-            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+          <motion.div key="qr" className="flex flex-col items-center gap-8 text-center px-8"
+            initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}>
             <div>
-              <h1 className="text-5xl font-bold tracking-tight gradient-text mb-2">SIRIUS MIRROR</h1>
-              <p className="text-xl font-light" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                See products on yourself <span className="text-blue-400 font-medium">instantly</span>
+              <h1 className="text-5xl font-bold gradient-text mb-2">SIRIUS MIRROR</h1>
+              <p className="text-xl font-light" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                Ürünleri kendinizde <span className="text-blue-400 font-semibold">anında</span> görün
               </p>
             </div>
-
             <div className="relative">
-              <div className="absolute -inset-4 rounded-3xl animate-pulse-ring"
-                style={{ background: 'rgba(59,130,246,0.12)', borderRadius: 24 }} />
+              <div className="absolute -inset-5 rounded-3xl animate-pulse"
+                style={{ background: 'rgba(59,130,246,0.08)' }} />
               <div className="glass-strong rounded-2xl p-6 flex flex-col items-center gap-4"
                 style={{ border: '1px solid rgba(59,130,246,0.3)' }}>
                 <QRCode />
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-                  <p className="text-sm font-medium text-blue-400">Scan to begin try-on</p>
+                  <p className="text-sm font-medium text-blue-400">QR kodu okutun</p>
                 </div>
-                <p className="text-xs font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                  Session: SM-{Math.random().toString(36).slice(2,8).toUpperCase()}
+                <p className="text-xs font-mono" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                  Oturum: SM-A7X9K2
                 </p>
               </div>
             </div>
-
             <div className="flex gap-8">
-              {[{ icon: '📱', label: 'Scan QR' }, { icon: '👗', label: 'Browse' }, { icon: '🪞', label: 'Try On' }].map((s, i) => (
+              {[{ icon: '📱', label: 'QR Okut' }, { icon: '👗', label: 'Seçin' }, { icon: '🪞', label: 'Görün' }].map((s, i) => (
                 <div key={i} className="flex flex-col items-center gap-2">
                   <div className="w-10 h-10 rounded-full glass flex items-center justify-center text-xl"
                     style={{ border: '1px solid rgba(255,255,255,0.1)' }}>{s.icon}</div>
-                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>{s.label}</span>
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>{s.label}</span>
                 </div>
               ))}
             </div>
-
-            <p className="text-sm font-light" style={{ color: 'rgba(255,255,255,0.25)' }}>
-              LUXE Fashion Group · Fifth Avenue Flagship
-            </p>
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.2)' }}>LUXE Fashion · Fifth Avenue</p>
           </motion.div>
         )}
 
-        {/* CONNECTING */}
+        {/* ── BAĞLANIYOR ── */}
         {mirrorState === 'SESSION_CONNECTING' && (
-          <motion.div key="connecting" className="flex flex-col items-center gap-8"
+          <motion.div key="conn" className="flex flex-col items-center gap-6"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="relative w-24 h-24">
+            <div className="relative w-20 h-20">
               <div className="absolute inset-0 rounded-full animate-spin"
                 style={{ border: '2px solid transparent', borderTopColor: '#3b82f6', borderRightColor: '#8b5cf6' }} />
               <div className="absolute inset-3 rounded-full animate-spin"
-                style={{ border: '2px solid transparent', borderBottomColor: '#3b82f6', animationDirection: 'reverse', animationDuration: '0.8s' }} />
-              <div className="absolute inset-0 flex items-center justify-center text-3xl">📱</div>
+                style={{ border: '2px solid transparent', borderBottomColor: '#3b82f6', animationDirection: 'reverse', animationDuration: '0.7s' }} />
+              <div className="absolute inset-0 flex items-center justify-center text-2xl">📱</div>
             </div>
             <div className="text-center">
-              <h2 className="text-2xl font-bold text-blue-400">Connecting</h2>
-              <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>Pairing your device...</p>
+              <h2 className="text-2xl font-bold text-blue-400">Bağlanıyor</h2>
+              <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>Cihazınızla eşleşiliyor...</p>
             </div>
           </motion.div>
         )}
 
-        {/* SESSION ACTIVE — waiting for product */}
+        {/* ── OTURUM AKTİF — ürün bekleniyor ── */}
         {mirrorState === 'SESSION_ACTIVE' && (
-          <motion.div key="active" className="flex flex-col items-center gap-8 text-center px-6"
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+          <motion.div key="active" className="flex flex-col items-center gap-6 text-center px-6 w-full"
+            initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <div className="flex items-center gap-3 glass px-5 py-2.5 rounded-full"
-              style={{ border: '1px solid rgba(34,197,94,0.3)' }}>
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span className="text-sm font-medium text-green-400">Mobile Connected</span>
+              style={{ border: '1px solid rgba(34,197,94,0.35)' }}>
+              <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-sm font-medium text-green-400">Telefon Bağlandı</span>
             </div>
-
-            {/* Silhouette placeholder */}
-            <div className="relative w-48 h-80">
+            {/* Siluet bekleme animasyonu */}
+            <div className="relative" style={{ width: 220, height: 380 }}>
               <div className="absolute inset-0 rounded-3xl"
-                style={{ background: 'linear-gradient(180deg, rgba(59,130,246,0.06) 0%, rgba(139,92,246,0.06) 100%)', border: '1px solid rgba(59,130,246,0.1)' }} />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <svg viewBox="0 0 80 180" className="w-32 h-64 opacity-20">
-                  <ellipse cx="40" cy="18" rx="12" ry="14" fill="rgba(59,130,246,0.5)" />
-                  <rect x="24" y="32" width="32" height="50" rx="8" fill="rgba(59,130,246,0.3)" />
-                  <rect x="10" y="34" width="16" height="40" rx="6" fill="rgba(59,130,246,0.2)" />
-                  <rect x="54" y="34" width="16" height="40" rx="6" fill="rgba(59,130,246,0.2)" />
-                  <rect x="26" y="80" width="12" height="52" rx="4" fill="rgba(59,130,246,0.2)" />
-                  <rect x="42" y="80" width="12" height="52" rx="4" fill="rgba(59,130,246,0.2)" />
-                </svg>
-              </div>
-              {/* Scan line */}
-              <div className="absolute left-0 right-0 h-0.5 animate-scan pointer-events-none"
-                style={{ background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.6), transparent)' }} />
+                style={{ background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.1)' }} />
+              <BodySilhouette rotationDeg={0} />
+              {/* Tarama çizgisi */}
+              <div className="absolute left-0 right-0 h-0.5 animate-scan"
+                style={{ background: 'linear-gradient(90deg,transparent,rgba(59,130,246,0.5),transparent)', pointerEvents: 'none' }} />
             </div>
-
-            <div className="text-center">
-              <p className="text-xl font-light" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                Browse on your phone
+            <div>
+              <p className="text-lg font-light" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                Telefondaki katalogdan ürün seçin
               </p>
-              <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                Select a product to see it on the mirror
+              <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                Seçtiğiniz kıyafet burada görünecek
               </p>
             </div>
           </motion.div>
         )}
 
-        {/* TRYON ACTIVE */}
+        {/* ── TRY-ON AKTİF ── */}
         {mirrorState === 'TRYON_ACTIVE' && sharedProduct && (
-          <motion.div key="tryon" className="relative w-full h-full flex flex-col items-center justify-center"
+          <motion.div key="tryon" className="relative flex flex-col items-center w-full h-full justify-center"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            {/* Full-body silhouette with overlay */}
-            <div className="relative w-56 h-[480px] mx-auto">
-              {/* Camera feed simulation */}
-              <div className="absolute inset-0 rounded-3xl overflow-hidden"
-                style={{ background: 'linear-gradient(180deg, #0d1829 0%, #111827 100%)', border: '1px solid rgba(59,130,246,0.15)' }}>
-                <svg viewBox="0 0 80 180" className="w-full h-full opacity-30">
-                  <ellipse cx="40" cy="18" rx="12" ry="14" fill="rgba(255,255,255,0.4)" />
-                  <rect x="24" y="32" width="32" height="50" rx="8" fill="rgba(255,255,255,0.2)" />
-                  <rect x="10" y="34" width="16" height="40" rx="6" fill="rgba(255,255,255,0.15)" />
-                  <rect x="54" y="34" width="16" height="40" rx="6" fill="rgba(255,255,255,0.15)" />
-                  <rect x="26" y="80" width="12" height="52" rx="4" fill="rgba(255,255,255,0.15)" />
-                  <rect x="42" y="80" width="12" height="52" rx="4" fill="rgba(255,255,255,0.15)" />
-                </svg>
+
+            {/* AI İlerleme çubuğu */}
+            <AnimatePresence>
+              {aiProgress < 100 && (
+                <motion.div key="progress"
+                  className="absolute top-14 left-6 right-6 z-30"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-mono text-blue-400">AI İşleniyor...</span>
+                    <span className="text-xs font-mono text-blue-400">{Math.round(aiProgress)}%</span>
+                  </div>
+                  <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    <motion.div className="h-full rounded-full"
+                      style={{ background: 'linear-gradient(90deg,#3b82f6,#8b5cf6)' }}
+                      animate={{ width: `${aiProgress}%` }} transition={{ duration: 0.15 }} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Body + Kıyafet */}
+            <div className="relative" style={{ width: 240, height: 420 }}>
+              {/* Zemin ışığı */}
+              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-36 h-6 rounded-full"
+                style={{ background: `radial-gradient(ellipse, ${selectedColor?.hex ?? '#3b82f6'}22, transparent)` }} />
+
+              {/* Siluet */}
+              <BodySilhouette rotationDeg={rotationDeg} />
+
+              {/* Kıyafet overlay — AI yüklenince göster */}
+              <AnimatePresence>
+                {aiProgress > 55 && (
+                  <motion.div key="garment" className="absolute inset-0"
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.4 }}>
+                    <GarmentOverlay
+                      product={sharedProduct}
+                      colorHex={selectedColor?.hex ?? '#3b82f6'}
+                      rotationDeg={rotationDeg}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Body tracking noktaları */}
+              {showTracking && aiProgress < 100 && <TrackingOverlay />}
+
+              {/* AI durumu */}
+              <div className="absolute top-2 right-2">
+                <div className="flex items-center gap-1.5 glass px-2 py-1 rounded-full"
+                  style={{ border: '1px solid rgba(34,197,94,0.3)' }}>
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                  <span className="text-xs font-mono text-green-400">
+                    {aiProgress < 100 ? 'İşleniyor' : 'Canlı'}
+                  </span>
+                </div>
               </div>
 
-              {/* Garment color overlay */}
-              {aiProgress > 60 && (
-                <motion.div
-                  initial={{ opacity: 0 }} animate={{ opacity: 0.85 }} transition={{ duration: 0.5 }}
-                  className="absolute inset-0 rounded-3xl"
-                  style={{
-                    background: `radial-gradient(ellipse 70% 60% at 50% 45%, ${selectedColor?.hex ?? '#3b82f6'}55 0%, transparent 80%)`,
-                    mixBlendMode: 'screen',
-                  }}
-                />
-              )}
-
-              {/* Body tracking */}
-              {aiProgress > 40 && <BodyTrackOverlay product={sharedProduct} colorHex={selectedColor?.hex ?? '#3b82f6'} />}
-
-              {/* AI loading bar */}
-              {aiProgress < 100 && (
-                <div className="absolute bottom-3 left-3 right-3">
-                  <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
-                    <motion.div
-                      className="h-full rounded-full"
-                      style={{ background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)' }}
-                      animate={{ width: `${aiProgress}%` }}
-                      transition={{ duration: 0.2 }}
-                    />
-                  </div>
-                </div>
+              {/* Döndürme ipu */}
+              {aiProgress >= 100 && (
+                <motion.div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1.5"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
+                  <span className="text-xs" style={{ color: 'rgba(255,255,255,0.25)' }}>← Telefonda döndürün →</span>
+                </motion.div>
               )}
             </div>
 
-            {/* Product info panel */}
+            {/* Ürün bilgi paneli */}
             <motion.div
-              className="absolute bottom-16 left-4 right-4 glass-strong rounded-2xl p-4"
-              initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }}
-              style={{ border: '1px solid rgba(255,255,255,0.1)' }}
-            >
+              className="absolute bottom-12 left-4 right-4 glass-strong rounded-2xl p-4"
+              style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+              initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-medium opacity-50 uppercase tracking-wider">{sharedProduct.brand}</p>
+                  <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#888' }}>{sharedProduct.brand}</p>
                   <p className="text-lg font-bold mt-0.5">{sharedProduct.name}</p>
-                  <p className="text-sm mt-0.5 opacity-60">{sharedProduct.categoryName}</p>
+                  <p className="text-xs mt-1" style={{ color: '#666' }}>{sharedProduct.categoryName}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xl font-bold text-blue-400">{sharedProduct.currency}{sharedProduct.price.toLocaleString()}</p>
                   {sharedProduct.originalPrice && (
-                    <p className="text-sm line-through opacity-40">{sharedProduct.currency}{sharedProduct.originalPrice}</p>
+                    <p className="text-sm line-through" style={{ color: '#555' }}>{sharedProduct.currency}{sharedProduct.originalPrice}</p>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-3 mt-3">
+              <div className="flex items-center gap-3 mt-3 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 {selectedColor && (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-4 h-4 rounded-full border border-white/20" style={{ background: selectedColor.hex }} />
-                    <span className="text-xs opacity-60">{selectedColor.name}</span>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full border-2" style={{ background: selectedColor.hex, borderColor: 'rgba(255,255,255,0.3)' }} />
+                    <span className="text-xs font-medium" style={{ color: '#aaa' }}>{selectedColor.name}</span>
                   </div>
                 )}
                 {sharedSize && (
-                  <div className="glass px-2 py-0.5 rounded-md">
-                    <span className="text-xs font-semibold">{sharedSize}</span>
+                  <div className="glass px-2.5 py-1 rounded-lg">
+                    <span className="text-xs font-bold text-blue-400">{sharedSize}</span>
                   </div>
                 )}
+                <div className="ml-auto flex items-center gap-1.5">
+                  <span className="text-xs" style={{ color: '#444' }}>★</span>
+                  <span className="text-xs font-semibold">{sharedProduct.rating}</span>
+                </div>
               </div>
             </motion.div>
           </motion.div>
         )}
+
       </AnimatePresence>
 
-      {/* Session info bottom bar */}
+      {/* Alt durum çubuğu */}
       {(mirrorState === 'SESSION_ACTIVE' || mirrorState === 'TRYON_ACTIVE') && (
-        <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-6 py-3"
-          style={{ borderTop: '1px solid rgba(59,130,246,0.12)', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(12px)' }}>
+        <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-5 py-2"
+          style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(10px)', borderTop: '1px solid rgba(59,130,246,0.08)' }}>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-xs font-mono text-green-400">SESSION ACTIVE</span>
+            <span className="text-xs font-mono text-green-400">OTURUM AKTİF</span>
           </div>
-          <span className="text-xs font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>
-            Latency: {Math.floor(80 + Math.random() * 60)}ms
+          <span className="text-xs font-mono" style={{ color: '#333' }}>
+            {Math.floor(80 + Math.random() * 40)}ms
           </span>
-          <span className="text-xs font-mono" style={{ color: 'rgba(255,255,255,0.3)' }}>
-            LUXE · 5th Ave
-          </span>
+          <span className="text-xs font-mono" style={{ color: '#333' }}>LUXE · 5th Ave</span>
         </div>
       )}
     </div>

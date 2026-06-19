@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [session, setSession] = useState<SharedSession>({
     active: false, product: null, colorId: null, size: null,
   });
+  const [mirrorRotation, setMirrorRotation] = useState(0);
 
   const handleSelectProduct = useCallback((product: Product, colorId: string, size: string) => {
     setSession(s => ({ ...s, product, colorId, size }));
@@ -33,9 +34,14 @@ const App: React.FC = () => {
     // mirror acknowledges session
   }, []);
 
+  const handleRotate = useCallback((r: number) => {
+    setMirrorRotation(r);
+  }, []);
+
   const goBack = () => {
     setModule('LANDING');
     setSession({ active: false, product: null, colorId: null, size: null });
+    setMirrorRotation(0);
   };
 
   // Dual-pane layout for Mirror + Mobile (simulates real-world side-by-side usage)
@@ -50,6 +56,7 @@ const App: React.FC = () => {
           sharedSize={session.size}
           onSessionStart={handleSessionStart}
           sessionActive={session.active}
+          rotation={mirrorRotation}
         />
       </div>
 
@@ -75,6 +82,7 @@ const App: React.FC = () => {
             onProductSelect={handleSelectProduct}
             onSessionConnect={handleSessionConnect}
             sessionActive={session.active}
+            onRotate={handleRotate}
           />
         </div>
       </div>

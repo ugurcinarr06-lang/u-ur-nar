@@ -7,6 +7,7 @@ interface Props {
   onProductSelect: (p: Product, colorId: string, size: string) => void;
   onSessionConnect: () => void;
   sessionActive: boolean;
+  onRotate?: (rotation: number) => void;
 }
 
 const StarRating: React.FC<{ rating: number }> = ({ rating }) => (
@@ -226,7 +227,7 @@ const ProductDetail: React.FC<{
   );
 };
 
-export const MobileApp: React.FC<Props> = ({ onProductSelect, onSessionConnect, sessionActive }) => {
+export const MobileApp: React.FC<Props> = ({ onProductSelect, onSessionConnect, sessionActive, onRotate }) => {
   const [view, setView] = useState<MobileView>(sessionActive ? 'CATALOG' : 'SESSION_SCAN');
   const [activeCatId, setActiveCatId] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -234,6 +235,20 @@ export const MobileApp: React.FC<Props> = ({ onProductSelect, onSessionConnect, 
   const [cartItems, setCartItems] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [connecting, setConnecting] = useState(false);
+  const [tryOnActive, setTryOnActive] = useState(false);
+  const [tryOnProduct, setTryOnProduct] = useState<Product | null>(null);
+  const [localRotation, setLocalRotation] = useState(0);
+
+  const handleRotationChange = (delta: number) => {
+    const next = Math.max(-2, Math.min(2, localRotation + delta));
+    setLocalRotation(next);
+    onRotate?.(next);
+  };
+
+  const resetRotation = () => {
+    setLocalRotation(0);
+    onRotate?.(0);
+  };
 
   const filteredProducts = PRODUCTS.filter(p => {
     const matchCat = !activeCatId || p.categoryId === activeCatId;
@@ -392,6 +407,66 @@ export const MobileApp: React.FC<Props> = ({ onProductSelect, onSessionConnect, 
                 </div>
               )}
             </div>
+
+            {/* Rotasyon kontrol çubuğu — deneme aktifken görünür */}
+            {tryOnActive && tryOnProduct && (
+              <div className="flex-shrink-0 px-4 py-3"
+                style={{ borderTop: '1px solid rgba(59,130,246,0.25)', background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(16px)' }}>
+                {/* Başlık */}
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                    <span className="text-xs font-semibold text-green-400">Aynada Deneniyor</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs opacity-40 max-w-28 truncate">{tryOnProduct.name}</span>
+                    <button
+                      className="text-xs opacity-30 hover:opacity-60"
+                      onClick={() => { setTryOnActive(false); setTryOnProduct(null); resetRotation(); }}>
+                      ✕
+                    </button>
+                  </div>
+                </div>
+                {/* Rotasyon butonları */}
+                <div className="flex items-center gap-2">
+                  <button
+                    className="flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-sm font-medium transition-all active:scale-95"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                    onClick={() => handleRotationChange(-1)}>
+                    <span style={{ fontSize: 16 }}>↺</span>
+                    <span>Sol</span>
+                  </button>
+                  <button
+                    className="w-12 h-10 rounded-xl flex items-center justify-center text-lg transition-all active:scale-95"
+                    style={{
+                      background: localRotation === 0 ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.06)',
+                      border: localRotation === 0 ? '1px solid rgba(59,130,246,0.5)' : '1px solid rgba(255,255,255,0.1)',
+                    }}
+                    onClick={resetRotation}
+                    title="Ortala">
+                    ⊙
+                  </button>
+                  <button
+                    className="flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-sm font-medium transition-all active:scale-95"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                    onClick={() => handleRotationChange(1)}>
+                    <span>Sağ</span>
+                    <span style={{ fontSize: 16 }}>↻</span>
+                  </button>
+                </div>
+                {/* Açı göstergesi */}
+                <div className="flex items-center justify-center mt-2 gap-1">
+                  {[-2,-1,0,1,2].map(pos => (
+                    <div key={pos} className="rounded-full transition-all"
+                      style={{
+                        width: localRotation === pos ? 20 : 6,
+                        height: 4,
+                        background: localRotation === pos ? '#3b82f6' : 'rgba(255,255,255,0.15)',
+                      }} />
+                  ))}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -404,6 +479,10 @@ export const MobileApp: React.FC<Props> = ({ onProductSelect, onSessionConnect, 
               onBack={() => setView('CATALOG')}
               onTryOn={(colorId, size) => {
                 onProductSelect(selectedProduct, colorId, size);
+                setTryOnActive(true);
+                setTryOnProduct(selectedProduct);
+                setLocalRotation(0);
+                onRotate?.(0);
                 setView('CATALOG');
               }}
               isFav={favorites.includes(selectedProduct.id)}
