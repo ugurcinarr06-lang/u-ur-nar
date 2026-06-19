@@ -21,7 +21,8 @@ export const PRODUCTS: Product[] = [
     name: 'Milano Premium Shirt', brand: 'Versace Collection',
     description: 'Hand-crafted Italian silk shirt with mother-of-pearl buttons. Tailored fit for the modern executive.',
     price: 289, originalPrice: 420, currency: '$',
-    imageUrl: '', imageGradient: 'from-blue-900 via-blue-700 to-blue-500',
+    imageUrl: 'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=500&h=620&fit=crop&auto=format&q=80',
+    imageGradient: 'from-blue-900 via-blue-700 to-blue-500',
     colors: [
       { id: 'c1', name: 'Midnight Blue', hex: '#1e3a5f' },
       { id: 'c2', name: 'Pearl White', hex: '#f8f8f8' },
@@ -38,7 +39,8 @@ export const PRODUCTS: Product[] = [
     name: 'Savile Row Power Suit', brand: 'Armani Exchange',
     description: 'Double-breasted wool blend suit with a slim cut. The epitome of boardroom authority.',
     price: 1240, originalPrice: 1890, currency: '$',
-    imageUrl: '', imageGradient: 'from-gray-900 via-gray-700 to-gray-600',
+    imageUrl: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=500&h=620&fit=crop&auto=format&q=80',
+    imageGradient: 'from-gray-900 via-gray-700 to-gray-600',
     colors: [
       { id: 'c1', name: 'Anthracite', hex: '#2c2c2c' },
       { id: 'c2', name: 'Navy Pinstripe', hex: '#1a2a4a' },
@@ -54,7 +56,8 @@ export const PRODUCTS: Product[] = [
     name: 'Celestine Evening Gown', brand: 'Valentino',
     description: 'Flowing chiffon evening gown with hand-embroidered floral motifs. Made for unforgettable moments.',
     price: 2100, currency: '$',
-    imageUrl: '', imageGradient: 'from-rose-900 via-rose-600 to-pink-400',
+    imageUrl: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=500&h=620&fit=crop&auto=format&q=80',
+    imageGradient: 'from-rose-900 via-rose-600 to-pink-400',
     colors: [
       { id: 'c1', name: 'Scarlet Rose', hex: '#be123c' },
       { id: 'c2', name: 'Midnight Black', hex: '#0a0a0a' },
@@ -71,7 +74,8 @@ export const PRODUCTS: Product[] = [
     name: 'Heritage Leather Moto', brand: 'Saint Laurent',
     description: 'Genuine Italian nappa leather jacket with YKK hardware. A timeless rebellion.',
     price: 3200, currency: '$',
-    imageUrl: '', imageGradient: 'from-stone-900 via-stone-700 to-stone-500',
+    imageUrl: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&h=620&fit=crop&auto=format&q=80',
+    imageGradient: 'from-stone-900 via-stone-700 to-stone-500',
     colors: [
       { id: 'c1', name: 'Jet Black', hex: '#0a0a0a' },
       { id: 'c2', name: 'Cognac', hex: '#8B4513' },
@@ -87,7 +91,8 @@ export const PRODUCTS: Product[] = [
     name: 'Supima Supreme Tee', brand: 'Loro Piana',
     description: '100% Supima cotton with a luxuriously soft hand feel. Minimalist luxury at its finest.',
     price: 195, currency: '$',
-    imageUrl: '', imageGradient: 'from-emerald-900 via-emerald-700 to-emerald-500',
+    imageUrl: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?w=500&h=620&fit=crop&auto=format&q=80',
+    imageGradient: 'from-emerald-900 via-emerald-700 to-emerald-500',
     colors: [
       { id: 'c1', name: 'Forest Green', hex: '#166534' },
       { id: 'c2', name: 'Ecru', hex: '#f5f0e8' },
@@ -105,7 +110,8 @@ export const PRODUCTS: Product[] = [
     name: 'Monaco Oxford Derby', brand: 'John Lobb',
     description: 'Bespoke Goodyear-welted oxfords in Annonay box calf leather. Handmade in Northampton.',
     price: 890, currency: '$',
-    imageUrl: '', imageGradient: 'from-amber-900 via-amber-700 to-amber-500',
+    imageUrl: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&h=620&fit=crop&auto=format&q=80',
+    imageGradient: 'from-amber-900 via-amber-700 to-amber-500',
     colors: [
       { id: 'c1', name: 'Mahogany', hex: '#5C1A0E' },
       { id: 'c2', name: 'Black', hex: '#0a0a0a' },
@@ -121,7 +127,8 @@ export const PRODUCTS: Product[] = [
     name: 'Riviera Wrap Dress', brand: 'Diane von Furstenberg',
     description: 'The iconic wrap dress reimagined. Silk jersey with an exclusive geometric print.',
     price: 445, currency: '$',
-    imageUrl: '', imageGradient: 'from-violet-900 via-violet-700 to-purple-500',
+    imageUrl: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=500&h=620&fit=crop&auto=format&q=80',
+    imageGradient: 'from-violet-900 via-violet-700 to-purple-500',
     colors: [
       { id: 'c1', name: 'Geometric Violet', hex: '#5b21b6' },
       { id: 'c2', name: 'Ivory Floral', hex: '#faf0e6' },
@@ -137,7 +144,8 @@ export const PRODUCTS: Product[] = [
     name: 'Obsidian Silk Scarf', brand: 'Hermès',
     description: 'Hand-rolled 90cm twill silk scarf featuring the iconic Carré print. A lifetime investment.',
     price: 485, currency: '$',
-    imageUrl: '', imageGradient: 'from-orange-900 via-orange-700 to-orange-400',
+    imageUrl: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=500&h=620&fit=crop&auto=format&q=80',
+    imageGradient: 'from-orange-900 via-orange-700 to-orange-400',
     colors: [
       { id: 'c1', name: 'Orange Classic', hex: '#ea580c' },
       { id: 'c2', name: 'Marine Blue', hex: '#0c4a6e' },

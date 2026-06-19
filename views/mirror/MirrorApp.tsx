@@ -270,7 +270,54 @@ const SuitOverlay: React.FC<{ color: string; rotationDeg: number }> = ({ color, 
 );
 
 // Kategori bazlı overlay seçimi
+// Kategori bazlı konum & boyut (container: 240x420px üzerinden %)
+function getGarmentLayout(categoryId: string) {
+  switch (categoryId) {
+    case 'cat-1': return { top: '19%', left: '14%', width: '72%', height: '36%' };  // T-shirt
+    case 'cat-2': return { top: '19%', left: '11%', width: '78%', height: '44%' };  // Gömlek
+    case 'cat-3': return { top: '19%', left: '8%',  width: '84%', height: '66%' };  // Elbise
+    case 'cat-4': return { top: '17%', left: '6%',  width: '88%', height: '50%' };  // Ceket
+    case 'cat-5': return { top: '16%', left: '4%',  width: '92%', height: '80%' };  // Takım
+    case 'cat-6': return { top: '80%', left: '14%', width: '72%', height: '16%' };  // Ayakkabı
+    case 'cat-7': return { top: '12%', left: '22%', width: '56%', height: '22%' };  // Aksesuar
+    default:      return { top: '19%', left: '14%', width: '72%', height: '36%' };
+  }
+}
+
+// Resimli Kıyafet Overlay — gerçek ürün fotoğrafı
+const ImageGarmentOverlay: React.FC<{ product: Product; rotationDeg: number }> = ({ product, rotationDeg }) => {
+  const layout = getGarmentLayout(product.categoryId);
+  return (
+    <div style={{
+      position: 'absolute',
+      ...layout,
+      transform: `rotateY(${rotationDeg}deg)`,
+      transition: 'transform 0.6s ease',
+      borderRadius: 12,
+      overflow: 'hidden',
+      boxShadow: '0 8px 40px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.1)',
+    }}>
+      <img
+        src={product.imageUrl}
+        alt={product.name}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
+      {/* Kenar fade — siluete karışsın */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'linear-gradient(to bottom, rgba(5,9,18,0.25) 0%, transparent 20%, transparent 80%, rgba(5,9,18,0.35) 100%)',
+        borderRadius: 12,
+      }} />
+    </div>
+  );
+};
+
 const GarmentOverlay: React.FC<{ product: Product; colorHex: string; rotationDeg: number }> = ({ product, colorHex, rotationDeg }) => {
+  // Gerçek resim varsa → resimli overlay
+  if (product.imageUrl) {
+    return <ImageGarmentOverlay product={product} rotationDeg={rotationDeg} />;
+  }
+  // Yoksa → SVG garment fallback
   switch (product.categoryId) {
     case 'cat-1': return <TShirtOverlay color={colorHex} rotationDeg={rotationDeg} />;
     case 'cat-2': return <ShirtOverlay color={colorHex} rotationDeg={rotationDeg} />;

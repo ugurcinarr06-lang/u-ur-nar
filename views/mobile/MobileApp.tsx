@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MobileView, Product } from '../../types';
-import { PRODUCTS, CATEGORIES } from '../../data';
+import { CATEGORIES } from '../../data';
+import { getAllProducts } from '../../utils/productStore';
 
 interface Props {
   onProductSelect: (p: Product, colorId: string, size: string) => void;
@@ -26,11 +27,24 @@ const ProductCard: React.FC<{ product: Product; onTap: () => void; isFav: boolea
     onClick={onTap}
   >
     {/* Product visual */}
-    <div className={`relative h-40 bg-gradient-to-br ${product.imageGradient} flex items-center justify-center`}>
+    <div className="relative h-40 overflow-hidden" style={{ background: '#1a1a1a' }}>
+      {product.imageUrl ? (
+        <img
+          src={product.imageUrl}
+          alt={product.name}
+          className="w-full h-full object-cover"
+          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+      ) : (
+        <div className={`w-full h-full bg-gradient-to-br ${product.imageGradient} flex items-center justify-center`}>
+          <div className="text-5xl opacity-80">{CATEGORIES.find(c => c.id === product.categoryId)?.icon ?? '👗'}</div>
+        </div>
+      )}
+      {/* Badges */}
       {product.isNew && (
         <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">NEW</div>
       )}
-      {product.originalPrice && (
+      {product.originalPrice && !product.isNew && (
         <div className="absolute top-2 left-2 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
           -{Math.round((1 - product.price / product.originalPrice) * 100)}%
         </div>
@@ -41,7 +55,6 @@ const ProductCard: React.FC<{ product: Product; onTap: () => void; isFav: boolea
       >
         <span className="text-sm">{isFav ? '❤️' : '🤍'}</span>
       </button>
-      <div className="text-5xl opacity-80">{CATEGORIES.find(c => c.id === product.categoryId)?.icon ?? '👗'}</div>
       <div className="absolute bottom-2 right-2 glass rounded-lg px-2 py-1">
         <span className="text-xs font-mono text-blue-400">{product.tryOnCount.toLocaleString()} try-ons</span>
       </div>
@@ -104,8 +117,19 @@ const ProductDetail: React.FC<{
 
       <div className="flex-1 overflow-y-auto no-scrollbar">
         {/* Product image */}
-        <div className={`h-56 bg-gradient-to-br ${product.imageGradient} flex items-center justify-center relative`}>
-          <div className="text-8xl opacity-90">{CATEGORIES.find(c => c.id === product.categoryId)?.icon ?? '👗'}</div>
+        <div className="relative h-64 overflow-hidden" style={{ background: '#111' }}>
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              className="w-full h-full object-cover"
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          ) : (
+            <div className={`w-full h-full bg-gradient-to-br ${product.imageGradient} flex items-center justify-center`}>
+              <div className="text-8xl opacity-90">{CATEGORIES.find(c => c.id === product.categoryId)?.icon ?? '👗'}</div>
+            </div>
+          )}
           <div className="absolute bottom-3 right-3 glass rounded-full px-3 py-1.5">
             <span className="text-xs font-semibold text-blue-400">★ {product.rating} ({product.reviewCount})</span>
           </div>
@@ -238,6 +262,12 @@ export const MobileApp: React.FC<Props> = ({ onProductSelect, onSessionConnect, 
   const [tryOnActive, setTryOnActive] = useState(false);
   const [tryOnProduct, setTryOnProduct] = useState<Product | null>(null);
   const [localRotation, setLocalRotation] = useState(0);
+  const [products, setProducts] = useState(getAllProducts);
+
+  // Admin'den yeni ürün eklenince güncelle
+  useEffect(() => {
+    setProducts(getAllProducts());
+  }, [view]);
 
   const handleRotationChange = (delta: number) => {
     const next = Math.max(-2, Math.min(2, localRotation + delta));
@@ -250,7 +280,7 @@ export const MobileApp: React.FC<Props> = ({ onProductSelect, onSessionConnect, 
     onRotate?.(0);
   };
 
-  const filteredProducts = PRODUCTS.filter(p => {
+  const filteredProducts = products.filter(p => {
     const matchCat = !activeCatId || p.categoryId === activeCatId;
     const matchSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.brand.toLowerCase().includes(searchQuery.toLowerCase());
     return matchCat && matchSearch;
@@ -515,7 +545,7 @@ export const MobileApp: React.FC<Props> = ({ onProductSelect, onSessionConnect, 
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
-                  {PRODUCTS.filter(p => favorites.includes(p.id)).map(p => (
+                  {products.filter(p => favorites.includes(p.id)).map(p => (
                     <ProductCard key={p.id} product={p}
                       onTap={() => { setSelectedProduct(p); setView('PRODUCT_DETAIL'); }}
                       isFav={true}

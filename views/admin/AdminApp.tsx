@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AdminView } from '../../types';
+import { AdminView, Product } from '../../types';
 import {
-  DASHBOARD_KPIS, ANALYTICS_30D, COMPANIES, STORES, MIRRORS, PRODUCTS,
+  DASHBOARD_KPIS, ANALYTICS_30D, COMPANIES, STORES, MIRRORS,
   USERS, SUBSCRIPTION_TIERS, TOP_PRODUCTS, CATEGORIES
 } from '../../data';
+import { getAllProducts, saveCustomProduct, deleteCustomProduct, generateProductId } from '../../utils/productStore';
 import { MetricCard, StatusDot, GlassCard, Badge, ProgressBar } from '../../components/shared/GlassCard';
 import { LineChart, BarChart, DonutChart } from '../../components/shared/MiniChart';
 
@@ -211,44 +212,195 @@ const Analytics: React.FC = () => {
   );
 };
 
+// ─── Ürün Ekleme Modalı ────────────────────────────────────────────────────────
+const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = ({ onClose, onSaved }) => {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState({
+    name: '', brand: '', price: '', categoryId: 'cat-1', description: '',
+    sizes: 'S,M,L,XL', imageUrl: '', imagePreview: '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target?.result as string;
+      setForm(f => ({ ...f, imageUrl: dataUrl, imagePreview: dataUrl }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = () => {
+    if (!form.name || !form.brand || !form.price || !form.imageUrl) return;
+    setSaving(true);
+    const cat = CATEGORIES.find(c => c.id === form.categoryId)!;
+    const product: Product = {
+      id: generateProductId(),
+      categoryId: form.categoryId,
+      categoryName: cat.name,
+      name: form.name,
+      brand: form.brand,
+      description: form.description || `${form.brand} — ${form.name}`,
+      price: parseFloat(form.price),
+      currency: '$',
+      imageUrl: form.imageUrl,
+      imageGradient: 'from-blue-900 via-blue-700 to-blue-500',
+      colors: [{ id: 'c1', name: 'Varsayılan', hex: '#3b82f6' }],
+      sizes: form.sizes.split(',').map(s => s.trim()).filter(Boolean),
+      tags: ['custom'],
+      tryOnCount: 0, favoriteCount: 0, rating: 5.0, reviewCount: 0,
+      isAvailable: true, isFeatured: false, isNew: true,
+    };
+    saveCustomProduct(product);
+    setTimeout(() => { setSaving(false); onSaved(); onClose(); }, 400);
+  };
+
+  const inputStyle = {
+    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+    color: 'white', borderRadius: 10, padding: '8px 12px', width: '100%', outline: 'none', fontSize: 13,
+  } as React.CSSProperties;
+
+  const labelStyle = { fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 4, display: 'block' };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)' }}>
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        className="w-full max-w-lg mx-4 rounded-2xl overflow-hidden"
+        style={{ background: '#111', border: '1px solid rgba(255,255,255,0.1)', maxHeight: '90vh', overflowY: 'auto' }}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <h2 className="text-base font-bold">Yeni Ürün Ekle</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-xl glass flex items-center justify-center text-sm opacity-60 hover:opacity-100">✕</button>
+        </div>
+
+        <div className="p-5 flex flex-col gap-4">
+          {/* Görsel Yükle */}
+          <div>
+            <label style={labelStyle}>Ürün Görseli *</label>
+            <div
+              className="rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all"
+              style={{ borderColor: form.imagePreview ? 'rgba(59,130,246,0.5)' : 'rgba(255,255,255,0.1)', height: 180, background: 'rgba(255,255,255,0.03)' }}
+              onClick={() => fileRef.current?.click()}>
+              {form.imagePreview ? (
+                <img src={form.imagePreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain', borderRadius: 10 }} />
+              ) : (
+                <div className="flex flex-col items-center gap-2 opacity-40">
+                  <span className="text-4xl">📸</span>
+                  <span className="text-xs">Görsel seçmek için tıklayın</span>
+                  <span className="text-xs">JPG, PNG, WEBP</span>
+                </div>
+              )}
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+          </div>
+
+          {/* İsim & Marka */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label style={labelStyle}>Ürün Adı *</label>
+              <input style={inputStyle} placeholder="Örn: Slim Fit Shirt" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <label style={labelStyle}>Marka *</label>
+              <input style={inputStyle} placeholder="Örn: Zara" value={form.brand} onChange={e => setForm(f => ({ ...f, brand: e.target.value }))} />
+            </div>
+          </div>
+
+          {/* Kategori & Fiyat */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label style={labelStyle}>Kategori</label>
+              <select style={{ ...inputStyle, appearance: 'none' }} value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}>
+                {CATEGORIES.map(c => <option key={c.id} value={c.id} style={{ background: '#111' }}>{c.icon} {c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Fiyat (USD) *</label>
+              <input style={inputStyle} type="number" placeholder="0" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} />
+            </div>
+          </div>
+
+          {/* Bedenler */}
+          <div>
+            <label style={labelStyle}>Bedenler (virgülle ayırın)</label>
+            <input style={inputStyle} placeholder="XS, S, M, L, XL, XXL" value={form.sizes} onChange={e => setForm(f => ({ ...f, sizes: e.target.value }))} />
+          </div>
+
+          {/* Açıklama */}
+          <div>
+            <label style={labelStyle}>Açıklama</label>
+            <textarea style={{ ...inputStyle, resize: 'none', height: 68 }} placeholder="Ürün açıklaması..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          </div>
+
+          {/* Kaydet */}
+          <button
+            className="w-full py-3 rounded-xl font-semibold btn-primary flex items-center justify-center gap-2"
+            style={{ opacity: (form.name && form.brand && form.price && form.imageUrl) ? 1 : 0.4 }}
+            onClick={handleSave}
+            disabled={!form.name || !form.brand || !form.price || !form.imageUrl || saving}>
+            {saving ? <><span className="animate-spin">⟳</span> Kaydediliyor...</> : '✓ Ürünü Kaydet'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 // ─── Products ──────────────────────────────────────────────────────────────────
 const Products: React.FC = () => {
   const [search, setSearch] = useState('');
-  const filtered = PRODUCTS.filter(p =>
+  const [showModal, setShowModal] = useState(false);
+  const [products, setProducts] = useState(getAllProducts);
+  const [deleteId, setDeleteId] = useState('');
+
+  const refresh = () => setProducts(getAllProducts());
+
+  const filtered = products.filter(p =>
     !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.brand.toLowerCase().includes(search.toLowerCase())
   );
 
+  const isCustom = (id: string) => id.startsWith('cp-');
+
+  const handleDelete = (id: string) => {
+    deleteCustomProduct(id);
+    refresh();
+    setDeleteId('');
+  };
+
   return (
     <div className="flex flex-col gap-5">
+      {showModal && <AddProductModal onClose={() => setShowModal(false)} onSaved={refresh} />}
+
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Products</h1>
-        <button className="btn-primary px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2">
-          <span>+</span> Add Product
+        <div>
+          <h1 className="text-2xl font-bold">Ürünler</h1>
+          <p className="text-xs mt-0.5" style={{ color: '#555' }}>{products.length} ürün listeleniyor</p>
+        </div>
+        <button className="btn-primary px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2" onClick={() => setShowModal(true)}>
+          <span>+</span> Yeni Ürün Ekle
         </button>
       </div>
 
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-48">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 text-sm">🔍</span>
-          <input type="text" placeholder="Search products..."
+          <input type="text" placeholder="Ürün veya marka ara..."
             value={search} onChange={e => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2 rounded-xl text-sm outline-none"
             style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: 'white' }}
           />
         </div>
-        {CATEGORIES.slice(0, 4).map(c => (
-          <div key={c.id} className="glass px-3 py-2 rounded-xl flex items-center gap-1.5 text-xs cursor-pointer">
-            <span>{c.icon}</span><span className="opacity-60">{c.name}</span>
-            <span className="font-semibold" style={{ color: c.color }}>{c.productCount}</span>
-          </div>
-        ))}
       </div>
 
       <div className="glass rounded-2xl overflow-hidden">
         <table className="w-full">
           <thead>
             <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              {['Product', 'Brand', 'Category', 'Price', 'Try-Ons', 'Rating', 'Status', ''].map(h => (
+              {['Ürün', 'Marka', 'Kategori', 'Fiyat', 'Deneme', 'Puan', 'Durum', ''].map(h => (
                 <th key={h} className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: '#555' }}>{h}</th>
               ))}
             </tr>
@@ -263,11 +415,17 @@ const Products: React.FC = () => {
                 }}>
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${p.imageGradient} flex items-center justify-center text-lg flex-shrink-0`}>
-                      {CATEGORIES.find(c => c.id === p.categoryId)?.icon}
+                    <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0" style={{ background: '#1a1a1a' }}>
+                      {p.imageUrl
+                        ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                        : <div className={`w-full h-full bg-gradient-to-br ${p.imageGradient} flex items-center justify-center text-lg`}>{CATEGORIES.find(c => c.id === p.categoryId)?.icon}</div>
+                      }
                     </div>
                     <div>
-                      <p className="text-sm font-semibold">{p.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-semibold">{p.name}</p>
+                        {isCustom(p.id) && <span className="text-xs px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(59,130,246,0.2)', color: '#3b82f6' }}>Özel</span>}
+                      </div>
                       <div className="flex gap-1 mt-0.5">
                         {p.colors.slice(0,4).map(c => (
                           <div key={c.id} className="w-3 h-3 rounded-full" style={{ background: c.hex }} />
@@ -294,8 +452,16 @@ const Products: React.FC = () => {
                 </td>
                 <td className="py-3 px-4">
                   <div className="flex gap-1">
-                    <button className="glass p-1.5 rounded-lg text-xs hover:scale-105 transition-transform">✏️</button>
-                    <button className="glass p-1.5 rounded-lg text-xs hover:scale-105 transition-transform">🗑️</button>
+                    {isCustom(p.id) && (
+                      deleteId === p.id ? (
+                        <div className="flex gap-1">
+                          <button className="px-2 py-1 rounded-lg text-xs bg-red-500/20 text-red-400 font-semibold" onClick={() => handleDelete(p.id)}>Sil</button>
+                          <button className="px-2 py-1 rounded-lg text-xs glass" onClick={() => setDeleteId('')}>İptal</button>
+                        </div>
+                      ) : (
+                        <button className="glass p-1.5 rounded-lg text-xs hover:scale-105 transition-transform" onClick={() => setDeleteId(p.id)}>🗑️</button>
+                      )
+                    )}
                   </div>
                 </td>
               </tr>
