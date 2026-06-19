@@ -34,7 +34,6 @@
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-      /* Glass morphism */
       .glass {
         background: rgba(255,255,255,0.04);
         backdrop-filter: blur(12px);
@@ -48,7 +47,6 @@
         border: 1px solid rgba(255,255,255,0.12);
       }
 
-      /* Gradient text */
       .gradient-text {
         background: linear-gradient(135deg, #3b82f6, #8b5cf6);
         -webkit-background-clip: text;
@@ -62,12 +60,10 @@
         background-clip: text;
       }
 
-      /* Glow effects */
       .glow-blue { box-shadow: 0 0 30px rgba(59,130,246,0.15); }
       .glow-purple { box-shadow: 0 0 30px rgba(139,92,246,0.15); }
       .glow-gold { box-shadow: 0 0 30px rgba(245,158,11,0.15); }
 
-      /* Animations */
       @keyframes pulse-ring {
         0% { transform: scale(0.95); opacity: 0.8; }
         70% { transform: scale(1.05); opacity: 0; }
@@ -103,11 +99,6 @@
         90% { opacity: 1; }
         100% { transform: translateY(-100px) translateX(20px); opacity: 0; }
       }
-      @keyframes data-stream {
-        0% { transform: translateY(-100%); opacity: 0; }
-        50% { opacity: 1; }
-        100% { transform: translateY(100%); opacity: 0; }
-      }
       @keyframes rotate-slow {
         from { transform: rotate(0deg); }
         to { transform: rotate(360deg); }
@@ -115,6 +106,9 @@
       @keyframes bg-shift {
         0%, 100% { background-position: 0% 50%; }
         50% { background-position: 100% 50%; }
+      }
+      @keyframes ripple-effect {
+        to { transform: translate(-50%, -50%) scale(4); opacity: 0; }
       }
 
       .animate-float { animation: float 4s ease-in-out infinite; }
@@ -126,44 +120,23 @@
       .animate-rotate-slow { animation: rotate-slow 20s linear infinite; }
       .animate-bg-shift { animation: bg-shift 8s ease infinite; }
 
-      /* Shimmer loading skeleton */
       .shimmer {
         background: linear-gradient(90deg, #1a1a1a 25%, #222 50%, #1a1a1a 75%);
         background-size: 200% 100%;
         animation: shimmer 1.5s infinite;
       }
 
-      /* Custom scrollbar */
       ::-webkit-scrollbar { width: 4px; height: 4px; }
       ::-webkit-scrollbar-track { background: #111; }
       ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
       ::-webkit-scrollbar-thumb:hover { background: #444; }
 
-      /* Status dot */
-      .status-online { color: #22c55e; }
-      .status-offline { color: #ef4444; }
-      .status-busy { color: #f59e0b; }
-
-      /* Mirror specific */
       .mirror-frame {
         background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
         border: 2px solid rgba(59,130,246,0.2);
         box-shadow: 0 0 60px rgba(59,130,246,0.1), inset 0 0 60px rgba(59,130,246,0.02);
       }
 
-      /* QR code mock */
-      .qr-pixel {
-        background: white;
-        border-radius: 1px;
-      }
-
-      /* Clothing overlay */
-      .clothing-overlay {
-        mix-blend-mode: multiply;
-        filter: drop-shadow(0 4px 20px rgba(59,130,246,0.4));
-      }
-
-      /* Premium button */
       .btn-primary {
         background: linear-gradient(135deg, #3b82f6, #8b5cf6);
         border: none;
@@ -176,7 +149,6 @@
         box-shadow: 0 8px 30px rgba(59,130,246,0.4);
       }
 
-      /* Touch ripple */
       .ripple {
         position: relative;
         overflow: hidden;
@@ -191,23 +163,10 @@
         transform: translate(-50%, -50%) scale(0);
         animation: ripple-effect 0.4s ease-out;
       }
-      @keyframes ripple-effect {
-        to { transform: translate(-50%, -50%) scale(4); opacity: 0; }
-      }
     </style>
-    <script type="importmap">
-{
-  "imports": {
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.24"
-  }
-}
-</script>
-</head>
+  </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>
