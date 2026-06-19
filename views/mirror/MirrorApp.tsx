@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Peer from 'peerjs';
 import { MirrorState, Product } from '../../types';
+
+const ThreeDGarmentViewer = lazy(() => import('./ThreeDGarmentViewer'));
 
 interface Props {
   sharedProduct: Product | null;
@@ -33,99 +35,173 @@ const RealQRCode: React.FC<{ url: string }> = ({ url }) => {
   );
 };
 
-// ── Gerçekçi Manken Silüeti ───────────────────────────────────────────────────
-const MannequinSilhouette: React.FC<{ rotationDeg: number }> = ({ rotationDeg }) => (
+// ── Gerçek İnsan Figürü ───────────────────────────────────────────────────────
+const HumanSilhouette: React.FC<{ rotationDeg: number }> = ({ rotationDeg }) => (
   <svg
     viewBox="0 0 200 480"
     style={{
       width: '100%', height: '100%',
       transform: `rotateY(${rotationDeg}deg)`,
       transition: 'transform 0.6s ease',
-      filter: 'drop-shadow(0 10px 28px rgba(0,0,0,0.55))',
+      filter: 'drop-shadow(0 12px 32px rgba(0,0,0,0.6))',
     }}
   >
     <defs>
-      <linearGradient id="mg-torso" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%"   stopColor="#5a4c3e" />
-        <stop offset="18%"  stopColor="#9e8c78" />
-        <stop offset="44%"  stopColor="#c8b89e" />
-        <stop offset="58%"  stopColor="#d8c8b0" />
-        <stop offset="82%"  stopColor="#9e8c78" />
-        <stop offset="100%" stopColor="#5a4c3e" />
+      {/* Ana cilt tonu — 3D silindir efekti */}
+      <linearGradient id="hs-body" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stopColor="#a0604a" />
+        <stop offset="16%"  stopColor="#c8845e" />
+        <stop offset="40%"  stopColor="#e0a888" />
+        <stop offset="55%"  stopColor="#ecc0a0" />
+        <stop offset="82%"  stopColor="#c8845e" />
+        <stop offset="100%" stopColor="#a0604a" />
       </linearGradient>
-      <linearGradient id="mg-arm-l" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%"   stopColor="#483c30" />
-        <stop offset="52%"  stopColor="#b0a088" />
-        <stop offset="100%" stopColor="#7a6a58" />
+      <linearGradient id="hs-arm-l" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stopColor="#8a4a38" />
+        <stop offset="55%"  stopColor="#d09878" />
+        <stop offset="100%" stopColor="#aa6850" />
       </linearGradient>
-      <linearGradient id="mg-arm-r" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%"   stopColor="#7a6a58" />
-        <stop offset="48%"  stopColor="#b0a088" />
-        <stop offset="100%" stopColor="#483c30" />
+      <linearGradient id="hs-arm-r" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stopColor="#aa6850" />
+        <stop offset="45%"  stopColor="#d09878" />
+        <stop offset="100%" stopColor="#8a4a38" />
       </linearGradient>
-      <linearGradient id="mg-leg-l" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%"   stopColor="#5a4c3e" />
-        <stop offset="48%"  stopColor="#bca890" />
-        <stop offset="100%" stopColor="#7a6858" />
+      <linearGradient id="hs-leg-l" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stopColor="#904a38" />
+        <stop offset="50%"  stopColor="#cc8868" />
+        <stop offset="100%" stopColor="#a86248" />
       </linearGradient>
-      <linearGradient id="mg-leg-r" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%"   stopColor="#7a6858" />
-        <stop offset="52%"  stopColor="#bca890" />
-        <stop offset="100%" stopColor="#5a4c3e" />
+      <linearGradient id="hs-leg-r" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stopColor="#a86248" />
+        <stop offset="50%"  stopColor="#cc8868" />
+        <stop offset="100%" stopColor="#904a38" />
+      </linearGradient>
+      <linearGradient id="hs-face" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stopColor="#b86848" />
+        <stop offset="35%"  stopColor="#d8966e" />
+        <stop offset="55%"  stopColor="#e8aa88" />
+        <stop offset="80%"  stopColor="#d0906a" />
+        <stop offset="100%" stopColor="#b86848" />
       </linearGradient>
     </defs>
 
     {/* Zemin gölgesi */}
-    <ellipse cx="100" cy="474" rx="44" ry="6" fill="rgba(0,0,0,0.4)" />
+    <ellipse cx="100" cy="475" rx="48" ry="7" fill="rgba(0,0,0,0.38)" />
+
+    {/* === AYAKLAR === */}
+    <path d="M63 450 C56 452 50 456 46 463 L46 470 Q52 474 76 474 L96 474 Q104 472 104 464 L102 450 Z"
+      fill="url(#hs-leg-l)" />
+    <path d="M137 450 C144 452 150 456 154 463 L154 470 Q148 474 124 474 L104 474 Q96 472 96 464 L98 450 Z"
+      fill="url(#hs-leg-r)" />
 
     {/* === SOL BACAK === */}
-    <path d="M66 310 C60 314 54 328 52 350 L50 448 Q50 462 64 466 L90 466 Q100 464 100 452 L100 310 Q84 306 66 310 Z"
-      fill="url(#mg-leg-l)" />
+    {/* Uyluk */}
+    <path d="M62 302 C56 308 50 325 48 350 L46 412 C46 430 52 444 64 450 L96 452 Q104 448 104 438 L102 302 Q84 296 62 302 Z"
+      fill="url(#hs-leg-l)" />
+    {/* Diz */}
+    <ellipse cx="74" cy="388" rx="20" ry="13" fill="url(#hs-leg-l)" />
 
     {/* === SAĞ BACAK === */}
-    <path d="M134 310 C140 314 146 328 148 350 L150 448 Q150 462 136 466 L110 466 Q100 464 100 452 L100 310 Q116 306 134 310 Z"
-      fill="url(#mg-leg-r)" />
+    {/* Uyluk */}
+    <path d="M138 302 C144 308 150 325 152 350 L154 412 C154 430 148 444 136 450 L104 452 Q96 448 96 438 L98 302 Q116 296 138 302 Z"
+      fill="url(#hs-leg-r)" />
+    {/* Diz */}
+    <ellipse cx="126" cy="388" rx="20" ry="13" fill="url(#hs-leg-r)" />
 
-    {/* === KALÇA / PELVİS === */}
-    <path d="M52 268 C44 278 42 295 42 313 L42 320 Q44 332 66 335 L134 335 Q156 332 158 320 L158 313 C158 295 156 278 148 268 L134 260 Q118 268 100 268 Q82 268 66 260 Z"
-      fill="url(#mg-torso)" />
+    {/* === KALÇA === */}
+    <path d="M55 270 C45 280 43 298 43 315 L43 322 Q46 334 68 337 L132 337 Q154 334 157 322 L157 315 C157 298 155 280 145 270 L132 262 Q116 270 100 270 Q84 270 68 262 Z"
+      fill="url(#hs-body)" />
 
-    {/* === GÖVDE (omuzdan bele — kum saati şekli) === */}
-    <path d="M42 102 C33 112 31 132 31 158 L31 192 C31 218 40 238 52 252 L62 262 Q78 270 100 270 Q122 270 138 262 L148 252 C160 238 169 218 169 192 L169 158 C169 132 167 112 158 102 L140 93 Q122 98 100 98 Q78 98 60 93 Z"
-      fill="url(#mg-torso)" />
+    {/* === GÖVDE (kum saati — gerçek insan oranları) === */}
+    <path d="
+      M44 94
+      C34 106 31 128 31 154
+      L31 188
+      C31 216 40 238 53 252
+      L64 264
+      Q80 272 100 272
+      Q120 272 136 264
+      L147 252
+      C160 238 169 216 169 188
+      L169 154
+      C169 128 166 106 156 94
+      L140 86
+      Q122 92 100 92
+      Q78 92 60 86
+      Z"
+      fill="url(#hs-body)" />
+
+    {/* Göğüs hacim çizgisi */}
+    <path d="M56 135 Q74 148 92 144 Q100 142 100 142 Q100 142 108 144 Q126 148 144 135"
+      stroke="rgba(0,0,0,0.07)" strokeWidth="1.2" fill="none" />
+    {/* Bel detayı */}
+    <path d="M31 188 C50 206 76 216 100 216 C124 216 150 206 169 188"
+      stroke="rgba(0,0,0,0.07)" strokeWidth="1" fill="none" />
 
     {/* === SOL KOL === */}
-    <path d="M42 106 C33 108 23 118 21 140 L19 206 Q18 220 27 224 L41 224 Q50 222 52 212 L56 148 C56 130 54 116 50 108 Z"
-      fill="url(#mg-arm-l)" />
-    {/* Sol el */}
-    <ellipse cx="30" cy="230" rx="9" ry="11" fill="url(#mg-arm-l)" />
+    {/* Üst kol */}
+    <path d="M44 98 C34 100 23 112 21 135 L18 200 Q17 215 26 219 L42 219 Q51 217 53 207 L57 144 C57 126 55 112 50 102 Z"
+      fill="url(#hs-arm-l)" />
+    {/* Dirsek */}
+    <ellipse cx="30" cy="215" rx="11" ry="8" fill="url(#hs-arm-l)" />
+    {/* Ön kol */}
+    <path d="M21 214 C18 224 18 242 22 256 L26 265 Q38 270 46 264 L50 252 C52 238 52 222 46 218 L30 215 Z"
+      fill="url(#hs-arm-l)" />
+    {/* El */}
+    <ellipse cx="34" cy="268" rx="13" ry="10" fill="url(#hs-arm-l)" />
 
     {/* === SAĞ KOL === */}
-    <path d="M158 106 C167 108 177 118 179 140 L181 206 Q182 220 173 224 L159 224 Q150 222 148 212 L144 148 C144 130 146 116 150 108 Z"
-      fill="url(#mg-arm-r)" />
-    {/* Sağ el */}
-    <ellipse cx="170" cy="230" rx="9" ry="11" fill="url(#mg-arm-r)" />
+    {/* Üst kol */}
+    <path d="M156 98 C166 100 177 112 179 135 L182 200 Q183 215 174 219 L158 219 Q149 217 147 207 L143 144 C143 126 145 112 150 102 Z"
+      fill="url(#hs-arm-r)" />
+    {/* Dirsek */}
+    <ellipse cx="170" cy="215" rx="11" ry="8" fill="url(#hs-arm-r)" />
+    {/* Ön kol */}
+    <path d="M179 214 C182 224 182 242 178 256 L174 265 Q162 270 154 264 L150 252 C148 238 148 222 154 218 L170 215 Z"
+      fill="url(#hs-arm-r)" />
+    {/* El */}
+    <ellipse cx="166" cy="268" rx="13" ry="10" fill="url(#hs-arm-r)" />
 
     {/* === BOYUN === */}
-    <path d="M88 68 L88 100 Q94 105 100 105 Q106 105 112 100 L112 68 Q106 63 100 63 Q94 63 88 68 Z"
-      fill="url(#mg-torso)" />
+    <path d="M88 66 L88 94 Q94 99 100 99 Q106 99 112 94 L112 66 Q106 61 100 61 Q94 61 88 66 Z"
+      fill="url(#hs-face)" />
 
-    {/* === BAŞ (özelliksiz klasik manken başı) === */}
-    <ellipse cx="100" cy="43" rx="22" ry="27" fill="url(#mg-torso)" />
-    <ellipse cx="92" cy="36" rx="8" ry="10" fill="rgba(255,255,255,0.1)" />
+    {/* === BAŞ === */}
+    <ellipse cx="100" cy="38" rx="28" ry="34" fill="url(#hs-face)" />
+
+    {/* SAÇ */}
+    <path d="M72 30 C70 8 82 2 100 2 C118 2 130 8 128 30 L122 38 Q116 14 100 14 Q84 14 78 38 Z"
+      fill="#1a0e08" />
+    <path d="M72 30 C68 40 70 58 74 68" stroke="#1a0e08" strokeWidth="7" strokeLinecap="round" fill="none" />
+    <path d="M128 30 C132 40 130 58 126 68" stroke="#1a0e08" strokeWidth="7" strokeLinecap="round" fill="none" />
+    {/* Arka saç hacmi */}
+    <path d="M72 22 C64 32 64 52 68 64" stroke="#1a0e08" strokeWidth="3" strokeLinecap="round" fill="none" />
+    <path d="M128 22 C136 32 136 52 132 64" stroke="#1a0e08" strokeWidth="3" strokeLinecap="round" fill="none" />
+
+    {/* KULAKLAR */}
+    <ellipse cx="72" cy="42" rx="5" ry="7" fill="url(#hs-face)" />
+    <ellipse cx="128" cy="42" rx="5" ry="7" fill="url(#hs-face)" />
+
+    {/* YÜZ ÖZELLİKLERİ */}
+    {/* Kaşlar */}
+    <path d="M83 27 C86 25 91 25 94 27" stroke="#2a1208" strokeWidth="2" strokeLinecap="round" fill="none" />
+    <path d="M106 27 C109 25 114 25 117 27" stroke="#2a1208" strokeWidth="2" strokeLinecap="round" fill="none" />
+    {/* Gözler */}
+    <ellipse cx="88" cy="34" rx="6" ry="4.5" fill="#1e0e06" />
+    <ellipse cx="112" cy="34" rx="6" ry="4.5" fill="#1e0e06" />
+    {/* Göz ışığı */}
+    <circle cx="90" cy="32.5" r="1.5" fill="rgba(255,255,255,0.65)" />
+    <circle cx="114" cy="32.5" r="1.5" fill="rgba(255,255,255,0.65)" />
+    {/* Burun */}
+    <path d="M97 44 Q100 50 103 44" stroke="#9a5838" strokeWidth="1.2" fill="none" />
+    <path d="M95 49 Q97.5 51 100 51 Q102.5 51 105 49" stroke="#9a5838" strokeWidth="1" fill="none" />
+    {/* Dudaklar */}
+    <path d="M91 57 Q100 63 109 57" stroke="#b06050" strokeWidth="2.2" strokeLinecap="round" fill="none" />
+    <path d="M93 57 Q100 54 107 57" stroke="#b06050" strokeWidth="1.5" strokeLinecap="round" fill="none" />
 
     {/* Omuz vurgusu */}
-    <path d="M60 96 C48 100 40 108 36 118 L42 112 Q74 98 100 98 Q126 98 158 112 L164 118 C160 108 152 100 140 96 Z"
-      fill="rgba(255,255,255,0.12)" />
-
-    {/* Bel darlığı detayı */}
-    <path d="M31 192 C48 210 74 220 100 220 C126 220 152 210 169 192"
-      stroke="rgba(0,0,0,0.1)" strokeWidth="1.5" fill="none" />
-
-    {/* === STAND TABAN === */}
-    <rect x="87" y="466" width="26" height="6" rx="2" fill="#2a2018" />
-    <ellipse cx="100" cy="476" rx="34" ry="5" fill="#2a2018" />
-    <ellipse cx="100" cy="479" rx="40" ry="4" fill="#1a1410" />
+    <path d="M60 90 C48 94 40 104 36 115 L44 108 Q74 94 100 93 Q126 94 156 108 L164 115 C160 104 152 94 140 90 Z"
+      fill="rgba(255,255,255,0.1)" />
   </svg>
 );
 
@@ -359,11 +435,19 @@ const ImageGarmentOverlay: React.FC<{ product: Product; rotationDeg: number }> =
 };
 
 const GarmentOverlay: React.FC<{ product: Product; colorHex: string; rotationDeg: number }> = ({ product, colorHex, rotationDeg }) => {
-  // Gerçek resim varsa → resimli overlay
+  // 3D model varsa → Three.js viewer (lazy-loaded)
+  if (product.modelUrl) {
+    return (
+      <Suspense fallback={<ImageGarmentOverlay product={product} rotationDeg={rotationDeg} />}>
+        <ThreeDGarmentViewer product={product} rotationDeg={rotationDeg} />
+      </Suspense>
+    );
+  }
+  // Düz görsel varsa → flat-lay overlay
   if (product.imageUrl) {
     return <ImageGarmentOverlay product={product} rotationDeg={rotationDeg} />;
   }
-  // Yoksa → SVG garment fallback
+  // SVG fallback
   switch (product.categoryId) {
     case 'cat-1': return <TShirtOverlay color={colorHex} rotationDeg={rotationDeg} />;
     case 'cat-2': return <ShirtOverlay color={colorHex} rotationDeg={rotationDeg} />;
@@ -649,7 +733,7 @@ export const MirrorApp: React.FC<Props> = ({
             <div className="relative" style={{ width: 220, height: 380 }}>
               <div className="absolute inset-0 rounded-3xl"
                 style={{ background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.1)' }} />
-              <MannequinSilhouette rotationDeg={0} />
+              <HumanSilhouette rotationDeg={0} />
               {/* Tarama çizgisi */}
               <div className="absolute left-0 right-0 h-0.5 animate-scan"
                 style={{ background: 'linear-gradient(90deg,transparent,rgba(59,130,246,0.5),transparent)', pointerEvents: 'none' }} />
@@ -696,7 +780,7 @@ export const MirrorApp: React.FC<Props> = ({
                 style={{ background: `radial-gradient(ellipse, ${selectedColor?.hex ?? '#3b82f6'}22, transparent)` }} />
 
               {/* Siluet */}
-              <MannequinSilhouette rotationDeg={rotationDeg} />
+              <HumanSilhouette rotationDeg={rotationDeg} />
 
               {/* Kıyafet overlay — AI yüklenince göster */}
               <AnimatePresence>

@@ -213,13 +213,18 @@ const Analytics: React.FC = () => {
 };
 
 // ─── Ürün Ekleme Modalı ────────────────────────────────────────────────────────
+const MAX_MODEL_BYTES = 4 * 1024 * 1024; // 4 MB
+
 const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = ({ onClose, onSaved }) => {
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef  = useRef<HTMLInputElement>(null);
+  const modelRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     name: '', brand: '', price: '', categoryId: 'cat-1', description: '',
     sizes: 'S,M,L,XL', imageUrl: '', imagePreview: '',
+    modelUrl: '', modelName: '',
   });
   const [saving, setSaving] = useState(false);
+  const [modelError, setModelError] = useState('');
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -228,6 +233,22 @@ const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = 
     reader.onload = ev => {
       const dataUrl = ev.target?.result as string;
       setForm(f => ({ ...f, imageUrl: dataUrl, imagePreview: dataUrl }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleModelFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setModelError('');
+    if (file.size > MAX_MODEL_BYTES) {
+      setModelError(`Dosya çok büyük: ${(file.size / 1048576).toFixed(1)} MB (maks 4 MB)`);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const dataUrl = ev.target?.result as string;
+      setForm(f => ({ ...f, modelUrl: dataUrl, modelName: file.name }));
     };
     reader.readAsDataURL(file);
   };
@@ -252,6 +273,7 @@ const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = 
       tags: ['custom'],
       tryOnCount: 0, favoriteCount: 0, rating: 5.0, reviewCount: 0,
       isAvailable: true, isFeatured: false, isNew: true,
+      ...(form.modelUrl ? { modelUrl: form.modelUrl } : {}),
     };
     saveCustomProduct(product);
     setTimeout(() => { setSaving(false); onSaved(); onClose(); }, 400);
@@ -334,6 +356,42 @@ const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = 
           <div>
             <label style={labelStyle}>Açıklama</label>
             <textarea style={{ ...inputStyle, resize: 'none', height: 68 }} placeholder="Ürün açıklaması..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          </div>
+
+          {/* ── 3D Model Yükle ── */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 14 }}>
+            <div className="flex items-center gap-2 mb-2">
+              <span style={{ ...labelStyle, marginBottom: 0 }}>3D Model (.glb)</span>
+              <span style={{ fontSize: 10, color: '#8b5cf6', background: 'rgba(139,92,246,0.15)', padding: '1px 7px', borderRadius: 20, fontWeight: 600 }}>
+                Sanal Giydirme
+              </span>
+              <span style={{ fontSize: 10, color: '#555', marginLeft: 'auto' }}>max 4 MB</span>
+            </div>
+            <div
+              className="rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all"
+              style={{ borderColor: form.modelUrl ? 'rgba(139,92,246,0.6)' : 'rgba(255,255,255,0.08)', height: 90, background: form.modelUrl ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.02)' }}
+              onClick={() => modelRef.current?.click()}>
+              {form.modelUrl ? (
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-2xl">🎭</span>
+                  <span style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 600 }}>{form.modelName}</span>
+                  <span style={{ fontSize: 10, color: '#555' }}>3D model hazır · Değiştirmek için tıklayın</span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-1 opacity-40">
+                  <span className="text-2xl">📦</span>
+                  <span style={{ fontSize: 12 }}>GLB dosyası seçin</span>
+                  <span style={{ fontSize: 10 }}>Gerçekçi 3D sanal giydirme</span>
+                </div>
+              )}
+            </div>
+            <input ref={modelRef} type="file" accept=".glb,.gltf" className="hidden" onChange={handleModelFile} />
+            {modelError && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 6 }}>{modelError}</p>}
+            {form.modelUrl && (
+              <p style={{ fontSize: 10, color: '#555', marginTop: 4 }}>
+                Kıyafet insan figürü üzerine 3D olarak yerleştirilecek
+              </p>
+            )}
           </div>
 
           {/* Kaydet */}
@@ -425,6 +483,7 @@ const Products: React.FC = () => {
                       <div className="flex items-center gap-1.5">
                         <p className="text-sm font-semibold">{p.name}</p>
                         {isCustom(p.id) && <span className="text-xs px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(59,130,246,0.2)', color: '#3b82f6' }}>Özel</span>}
+                        {p.modelUrl && <span className="text-xs px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(139,92,246,0.2)', color: '#8b5cf6' }}>3D</span>}
                       </div>
                       <div className="flex gap-1 mt-0.5">
                         {p.colors.slice(0,4).map(c => (

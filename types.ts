@@ -111,6 +111,7 @@ export interface Product {
   currency: string;
   imageUrl: string;
   imageGradient: string;
+  modelUrl?: string; // base64 GLB — 3D sanal giydirme
   colors: ProductColor[];
   sizes: string[];
   tags: string[];
