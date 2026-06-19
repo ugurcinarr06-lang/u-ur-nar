@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MobileView, Product } from '../../types';
 import { PRODUCTS, CATEGORIES } from '../../data';
@@ -255,6 +255,13 @@ export const MobileApp: React.FC<Props> = ({ onProductSelect, onSessionConnect, 
     const matchSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.brand.toLowerCase().includes(searchQuery.toLowerCase());
     return matchCat && matchSearch;
   });
+
+  // Standalone modda sessionActive=true ile mount olursa doğrudan kataloga geç
+  useEffect(() => {
+    if (sessionActive && view === 'SESSION_SCAN') {
+      setView('CATALOG');
+    }
+  }, [sessionActive]);
 
   const handleConnect = () => {
     setConnecting(true);

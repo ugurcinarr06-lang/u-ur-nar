@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Peer from 'peerjs';
 import { MirrorState, Product } from '../../types';
 
 interface Props {
@@ -11,37 +12,26 @@ interface Props {
   rotation?: number; // -1 left, 0 center, 1 right
 }
 
-// ── QR Kodu ──────────────────────────────────────────────────────────────────
-const QR_PIXELS = [
-  [1,1,1,1,1,1,1,0,1,0,1,0,1,1,1,1,1,1,1],
-  [1,0,0,0,0,0,1,0,0,1,0,1,1,0,0,0,0,0,1],
-  [1,0,1,1,1,0,1,0,1,0,1,0,1,0,1,1,1,0,1],
-  [1,0,1,1,1,0,1,0,0,1,0,1,1,0,1,1,1,0,1],
-  [1,0,0,0,0,0,1,0,1,0,1,0,1,0,0,0,0,0,1],
-  [1,1,1,1,1,1,1,0,1,0,1,0,1,1,1,1,1,1,1],
-  [0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0],
-  [1,0,1,1,0,1,0,1,1,0,1,0,0,1,0,1,1,0,1],
-  [0,1,0,0,1,0,1,0,0,1,0,1,1,0,1,0,0,1,0],
-  [1,0,1,0,1,0,0,1,0,0,1,0,0,1,0,1,0,0,1],
-  [0,1,0,1,0,1,0,0,1,1,0,1,0,0,1,0,1,1,0],
-  [0,0,0,0,0,0,0,0,1,0,1,0,1,0,0,1,0,1,0],
-  [1,1,1,1,1,1,1,0,0,1,0,0,0,1,0,0,1,0,1],
-  [1,0,0,0,0,0,1,0,1,0,1,1,0,0,1,1,0,0,1],
-  [1,0,1,1,1,0,1,0,0,1,0,0,1,0,0,1,1,0,0],
-  [1,0,1,1,1,0,1,0,1,0,0,1,0,1,0,0,0,1,1],
-  [1,0,0,0,0,0,1,0,0,1,1,0,1,0,1,1,0,0,1],
-  [1,1,1,1,1,1,1,0,1,0,0,1,0,0,1,0,1,1,0],
-];
-
-const QRCode: React.FC = () => (
-  <div className="inline-block p-3 rounded-xl" style={{ background: 'white' }}>
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${QR_PIXELS[0].length}, 7px)`, gap: 0 }}>
-      {QR_PIXELS.flat().map((px, i) => (
-        <div key={i} style={{ width: 7, height: 7, background: px ? '#000' : 'transparent' }} />
-      ))}
+// ── Gerçek QR Kod Bileşeni ────────────────────────────────────────────────────
+const RealQRCode: React.FC<{ url: string }> = ({ url }) => {
+  if (!url) {
+    return (
+      <div className="rounded-xl flex items-center justify-center"
+        style={{ width: 180, height: 180, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(59,130,246,0.2)' }}>
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-blue-400">Hazırlanıyor...</span>
+        </div>
+      </div>
+    );
+  }
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(url)}&color=000000&bgcolor=FFFFFF&margin=2`;
+  return (
+    <div className="p-2 rounded-xl" style={{ background: 'white' }}>
+      <img src={qrSrc} alt="QR Kod" width={180} height={180} className="rounded-lg block" />
     </div>
-  </div>
-);
+  );
+};
 
 // ── İnsan Silueti SVG ─────────────────────────────────────────────────────────
 const BodySilhouette: React.FC<{ rotationDeg: number }> = ({ rotationDeg }) => (
@@ -334,9 +324,63 @@ export const MirrorApp: React.FC<Props> = ({
   const [showTracking, setShowTracking] = useState(false);
   const [rotationDeg, setRotationDeg] = useState(0);
 
+  // PeerJS state
+  const [peerId, setPeerId] = useState('');
+  const [peerConnected, setPeerConnected] = useState(false);
+  const [peerProduct, setPeerProduct] = useState<Product | null>(null);
+  const [peerColor, setPeerColor] = useState<string | null>(null);
+  const [peerSize, setPeerSize] = useState<string | null>(null);
+  const peerRef = useRef<InstanceType<typeof Peer> | null>(null);
+
+  // Gerçek ürün: peer'den gelen öncelikli, demo modunda props
+  const effectiveProduct = peerProduct ?? sharedProduct;
+  const effectiveColor = peerColor ?? sharedColor;
+  const effectiveSize = peerSize ?? sharedSize;
+
+  // QR URL
+  const mobileUrl = peerId
+    ? `${window.location.origin}/?m=1&p=${peerId}`
+    : '';
+
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  // PeerJS: aynanın peer bağlantısı
+  useEffect(() => {
+    const peer = new Peer();
+    peerRef.current = peer;
+
+    peer.on('open', (id) => setPeerId(id));
+
+    peer.on('connection', (conn) => {
+      setPeerConnected(true);
+      setMirrorState('SESSION_CONNECTING');
+      setTimeout(() => { setMirrorState('SESSION_ACTIVE'); onSessionStart(); }, 1600);
+
+      conn.on('data', (raw: unknown) => {
+        const data = raw as { type: string; product?: Product; colorId?: string; size?: string; rotation?: number };
+        if (data.type === 'SELECT' && data.product) {
+          setPeerProduct(data.product);
+          setPeerColor(data.colorId ?? null);
+          setPeerSize(data.size ?? null);
+        }
+        if (data.type === 'ROTATE' && typeof data.rotation === 'number') {
+          setRotationDeg(data.rotation * 20);
+        }
+      });
+
+      conn.on('close', () => {
+        setPeerConnected(false);
+        setMirrorState('QR_DISPLAYED');
+        setPeerProduct(null);
+        setPeerColor(null);
+        setPeerSize(null);
+      });
+    });
+
+    return () => peer.destroy();
   }, []);
 
   useEffect(() => {
@@ -346,15 +390,17 @@ export const MirrorApp: React.FC<Props> = ({
     }
   }, []);
 
+  // Demo modu: props ile bağlantı (dual-pane simülasyon)
   useEffect(() => {
-    if (sessionActive && mirrorState === 'QR_DISPLAYED') {
+    if (sessionActive && !peerConnected && mirrorState === 'QR_DISPLAYED') {
       setMirrorState('SESSION_CONNECTING');
       setTimeout(() => { setMirrorState('SESSION_ACTIVE'); onSessionStart(); }, 1600);
     }
   }, [sessionActive]);
 
+  // Ürün seçimi (peer veya demo)
   useEffect(() => {
-    if (sharedProduct && (mirrorState === 'SESSION_ACTIVE' || mirrorState === 'TRYON_ACTIVE')) {
+    if (effectiveProduct && (mirrorState === 'SESSION_ACTIVE' || mirrorState === 'TRYON_ACTIVE')) {
       setMirrorState('TRYON_ACTIVE');
       setAiProgress(0);
       setShowTracking(false);
@@ -367,17 +413,17 @@ export const MirrorApp: React.FC<Props> = ({
       }, 80);
       return () => clearInterval(t);
     }
-  }, [sharedProduct, sharedColor]);
+  }, [peerProduct, sharedProduct, peerColor, sharedColor]);
 
-  // Rotation prop değişince animasyon
+  // Demo modunda rotation prop'u kullan (peer bağlı değilse)
   useEffect(() => {
-    setRotationDeg(rotation * 28);
-    const t = setTimeout(() => setRotationDeg(0), 900);
-    return () => clearTimeout(t);
-  }, [rotation]);
+    if (!peerConnected) {
+      setRotationDeg(rotation * 20);
+    }
+  }, [rotation, peerConnected]);
 
-  const selectedColor = sharedProduct?.colors.find(c => c.id === sharedColor)
-    ?? sharedProduct?.colors[0];
+  const selectedColor = effectiveProduct?.colors.find(c => c.id === effectiveColor)
+    ?? effectiveProduct?.colors[0];
 
   return (
     <div className="relative w-full h-full overflow-hidden flex flex-col items-center justify-center"
@@ -445,14 +491,18 @@ export const MirrorApp: React.FC<Props> = ({
                 style={{ background: 'rgba(59,130,246,0.08)' }} />
               <div className="glass-strong rounded-2xl p-6 flex flex-col items-center gap-4"
                 style={{ border: '1px solid rgba(59,130,246,0.3)' }}>
-                <QRCode />
+                <RealQRCode url={mobileUrl} />
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-                  <p className="text-sm font-medium text-blue-400">QR kodu okutun</p>
+                  <p className="text-sm font-medium text-blue-400">
+                    {peerId ? 'Kameranızla okutun' : 'QR hazırlanıyor...'}
+                  </p>
                 </div>
-                <p className="text-xs font-mono" style={{ color: 'rgba(255,255,255,0.25)' }}>
-                  Oturum: SM-A7X9K2
-                </p>
+                {peerId && (
+                  <p className="text-xs font-mono" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                    ID: {peerId.slice(0, 12)}...
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex gap-8">
@@ -516,7 +566,7 @@ export const MirrorApp: React.FC<Props> = ({
         )}
 
         {/* ── TRY-ON AKTİF ── */}
-        {mirrorState === 'TRYON_ACTIVE' && sharedProduct && (
+        {mirrorState === 'TRYON_ACTIVE' && effectiveProduct && (
           <motion.div key="tryon" className="relative flex flex-col items-center w-full h-full justify-center"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
 
@@ -556,7 +606,7 @@ export const MirrorApp: React.FC<Props> = ({
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.4 }}>
                     <GarmentOverlay
-                      product={sharedProduct}
+                      product={effectiveProduct}
                       colorHex={selectedColor?.hex ?? '#3b82f6'}
                       rotationDeg={rotationDeg}
                     />
@@ -594,14 +644,14 @@ export const MirrorApp: React.FC<Props> = ({
               initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#888' }}>{sharedProduct.brand}</p>
-                  <p className="text-lg font-bold mt-0.5">{sharedProduct.name}</p>
-                  <p className="text-xs mt-1" style={{ color: '#666' }}>{sharedProduct.categoryName}</p>
+                  <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#888' }}>{effectiveProduct.brand}</p>
+                  <p className="text-lg font-bold mt-0.5">{effectiveProduct.name}</p>
+                  <p className="text-xs mt-1" style={{ color: '#666' }}>{effectiveProduct.categoryName}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-bold text-blue-400">{sharedProduct.currency}{sharedProduct.price.toLocaleString()}</p>
-                  {sharedProduct.originalPrice && (
-                    <p className="text-sm line-through" style={{ color: '#555' }}>{sharedProduct.currency}{sharedProduct.originalPrice}</p>
+                  <p className="text-xl font-bold text-blue-400">{effectiveProduct.currency}{effectiveProduct.price.toLocaleString()}</p>
+                  {effectiveProduct.originalPrice && (
+                    <p className="text-sm line-through" style={{ color: '#555' }}>{effectiveProduct.currency}{effectiveProduct.originalPrice}</p>
                   )}
                 </div>
               </div>
@@ -612,14 +662,14 @@ export const MirrorApp: React.FC<Props> = ({
                     <span className="text-xs font-medium" style={{ color: '#aaa' }}>{selectedColor.name}</span>
                   </div>
                 )}
-                {sharedSize && (
+                {effectiveSize && (
                   <div className="glass px-2.5 py-1 rounded-lg">
-                    <span className="text-xs font-bold text-blue-400">{sharedSize}</span>
+                    <span className="text-xs font-bold text-blue-400">{effectiveSize}</span>
                   </div>
                 )}
                 <div className="ml-auto flex items-center gap-1.5">
                   <span className="text-xs" style={{ color: '#444' }}>★</span>
-                  <span className="text-xs font-semibold">{sharedProduct.rating}</span>
+                  <span className="text-xs font-semibold">{effectiveProduct.rating}</span>
                 </div>
               </div>
             </motion.div>
