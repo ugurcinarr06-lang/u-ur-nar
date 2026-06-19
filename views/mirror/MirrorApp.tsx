@@ -33,47 +33,99 @@ const RealQRCode: React.FC<{ url: string }> = ({ url }) => {
   );
 };
 
-// ── İnsan Silueti SVG ─────────────────────────────────────────────────────────
-const BodySilhouette: React.FC<{ rotationDeg: number }> = ({ rotationDeg }) => (
+// ── Gerçekçi Manken Silüeti ───────────────────────────────────────────────────
+const MannequinSilhouette: React.FC<{ rotationDeg: number }> = ({ rotationDeg }) => (
   <svg
     viewBox="0 0 200 480"
     style={{
       width: '100%', height: '100%',
       transform: `rotateY(${rotationDeg}deg)`,
       transition: 'transform 0.6s ease',
-      filter: 'drop-shadow(0 0 20px rgba(59,130,246,0.15))',
+      filter: 'drop-shadow(0 10px 28px rgba(0,0,0,0.55))',
     }}
   >
-    {/* Baş */}
-    <ellipse cx="100" cy="52" rx="28" ry="32" fill="rgba(255,255,255,0.08)" stroke="rgba(59,130,246,0.3)" strokeWidth="1" />
-    {/* Boyun */}
-    <rect x="90" y="82" width="20" height="18" rx="4" fill="rgba(255,255,255,0.07)" stroke="rgba(59,130,246,0.25)" strokeWidth="1" />
-    {/* Gövde */}
-    <path d="M55 100 Q40 110 38 150 L38 250 Q38 265 55 268 L145 268 Q162 265 162 250 L162 150 Q160 110 145 100 Z"
-      fill="rgba(255,255,255,0.06)" stroke="rgba(59,130,246,0.2)" strokeWidth="1" />
-    {/* Sol kol */}
-    <path d="M55 108 Q32 118 25 155 L22 210 Q20 220 28 222 L40 222 Q46 220 48 210 L52 165 Q56 140 60 125 Z"
-      fill="rgba(255,255,255,0.05)" stroke="rgba(59,130,246,0.18)" strokeWidth="1" />
-    {/* Sağ kol */}
-    <path d="M145 108 Q168 118 175 155 L178 210 Q180 220 172 222 L160 222 Q154 220 152 210 L148 165 Q144 140 140 125 Z"
-      fill="rgba(255,255,255,0.05)" stroke="rgba(59,130,246,0.18)" strokeWidth="1" />
+    <defs>
+      <linearGradient id="mg-torso" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stopColor="#5a4c3e" />
+        <stop offset="18%"  stopColor="#9e8c78" />
+        <stop offset="44%"  stopColor="#c8b89e" />
+        <stop offset="58%"  stopColor="#d8c8b0" />
+        <stop offset="82%"  stopColor="#9e8c78" />
+        <stop offset="100%" stopColor="#5a4c3e" />
+      </linearGradient>
+      <linearGradient id="mg-arm-l" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stopColor="#483c30" />
+        <stop offset="52%"  stopColor="#b0a088" />
+        <stop offset="100%" stopColor="#7a6a58" />
+      </linearGradient>
+      <linearGradient id="mg-arm-r" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stopColor="#7a6a58" />
+        <stop offset="48%"  stopColor="#b0a088" />
+        <stop offset="100%" stopColor="#483c30" />
+      </linearGradient>
+      <linearGradient id="mg-leg-l" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stopColor="#5a4c3e" />
+        <stop offset="48%"  stopColor="#bca890" />
+        <stop offset="100%" stopColor="#7a6858" />
+      </linearGradient>
+      <linearGradient id="mg-leg-r" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%"   stopColor="#7a6858" />
+        <stop offset="52%"  stopColor="#bca890" />
+        <stop offset="100%" stopColor="#5a4c3e" />
+      </linearGradient>
+    </defs>
+
+    {/* Zemin gölgesi */}
+    <ellipse cx="100" cy="474" rx="44" ry="6" fill="rgba(0,0,0,0.4)" />
+
+    {/* === SOL BACAK === */}
+    <path d="M66 310 C60 314 54 328 52 350 L50 448 Q50 462 64 466 L90 466 Q100 464 100 452 L100 310 Q84 306 66 310 Z"
+      fill="url(#mg-leg-l)" />
+
+    {/* === SAĞ BACAK === */}
+    <path d="M134 310 C140 314 146 328 148 350 L150 448 Q150 462 136 466 L110 466 Q100 464 100 452 L100 310 Q116 306 134 310 Z"
+      fill="url(#mg-leg-r)" />
+
+    {/* === KALÇA / PELVİS === */}
+    <path d="M52 268 C44 278 42 295 42 313 L42 320 Q44 332 66 335 L134 335 Q156 332 158 320 L158 313 C158 295 156 278 148 268 L134 260 Q118 268 100 268 Q82 268 66 260 Z"
+      fill="url(#mg-torso)" />
+
+    {/* === GÖVDE (omuzdan bele — kum saati şekli) === */}
+    <path d="M42 102 C33 112 31 132 31 158 L31 192 C31 218 40 238 52 252 L62 262 Q78 270 100 270 Q122 270 138 262 L148 252 C160 238 169 218 169 192 L169 158 C169 132 167 112 158 102 L140 93 Q122 98 100 98 Q78 98 60 93 Z"
+      fill="url(#mg-torso)" />
+
+    {/* === SOL KOL === */}
+    <path d="M42 106 C33 108 23 118 21 140 L19 206 Q18 220 27 224 L41 224 Q50 222 52 212 L56 148 C56 130 54 116 50 108 Z"
+      fill="url(#mg-arm-l)" />
     {/* Sol el */}
-    <ellipse cx="29" cy="228" rx="9" ry="12" fill="rgba(255,255,255,0.06)" stroke="rgba(59,130,246,0.15)" strokeWidth="1" />
+    <ellipse cx="30" cy="230" rx="9" ry="11" fill="url(#mg-arm-l)" />
+
+    {/* === SAĞ KOL === */}
+    <path d="M158 106 C167 108 177 118 179 140 L181 206 Q182 220 173 224 L159 224 Q150 222 148 212 L144 148 C144 130 146 116 150 108 Z"
+      fill="url(#mg-arm-r)" />
     {/* Sağ el */}
-    <ellipse cx="171" cy="228" rx="9" ry="12" fill="rgba(255,255,255,0.06)" stroke="rgba(59,130,246,0.15)" strokeWidth="1" />
-    {/* Bel/kalça */}
-    <path d="M48 265 Q38 280 36 310 L36 350 Q38 358 52 360 L148 360 Q162 358 164 350 L164 310 Q162 280 152 265 Z"
-      fill="rgba(255,255,255,0.05)" stroke="rgba(59,130,246,0.15)" strokeWidth="1" />
-    {/* Sol bacak */}
-    <path d="M52 355 L48 435 Q47 448 56 450 L82 450 Q90 448 90 435 L88 355 Z"
-      fill="rgba(255,255,255,0.05)" stroke="rgba(59,130,246,0.12)" strokeWidth="1" />
-    {/* Sağ bacak */}
-    <path d="M148 355 L152 435 Q153 448 144 450 L118 450 Q110 448 110 435 L112 355 Z"
-      fill="rgba(255,255,255,0.05)" stroke="rgba(59,130,246,0.12)" strokeWidth="1" />
-    {/* Sol ayak */}
-    <ellipse cx="66" cy="456" rx="16" ry="8" fill="rgba(255,255,255,0.06)" stroke="rgba(59,130,246,0.12)" strokeWidth="1" />
-    {/* Sağ ayak */}
-    <ellipse cx="134" cy="456" rx="16" ry="8" fill="rgba(255,255,255,0.06)" stroke="rgba(59,130,246,0.12)" strokeWidth="1" />
+    <ellipse cx="170" cy="230" rx="9" ry="11" fill="url(#mg-arm-r)" />
+
+    {/* === BOYUN === */}
+    <path d="M88 68 L88 100 Q94 105 100 105 Q106 105 112 100 L112 68 Q106 63 100 63 Q94 63 88 68 Z"
+      fill="url(#mg-torso)" />
+
+    {/* === BAŞ (özelliksiz klasik manken başı) === */}
+    <ellipse cx="100" cy="43" rx="22" ry="27" fill="url(#mg-torso)" />
+    <ellipse cx="92" cy="36" rx="8" ry="10" fill="rgba(255,255,255,0.1)" />
+
+    {/* Omuz vurgusu */}
+    <path d="M60 96 C48 100 40 108 36 118 L42 112 Q74 98 100 98 Q126 98 158 112 L164 118 C160 108 152 100 140 96 Z"
+      fill="rgba(255,255,255,0.12)" />
+
+    {/* Bel darlığı detayı */}
+    <path d="M31 192 C48 210 74 220 100 220 C126 220 152 210 169 192"
+      stroke="rgba(0,0,0,0.1)" strokeWidth="1.5" fill="none" />
+
+    {/* === STAND TABAN === */}
+    <rect x="87" y="466" width="26" height="6" rx="2" fill="#2a2018" />
+    <ellipse cx="100" cy="476" rx="34" ry="5" fill="#2a2018" />
+    <ellipse cx="100" cy="479" rx="40" ry="4" fill="#1a1410" />
   </svg>
 );
 
@@ -284,7 +336,7 @@ function getGarmentLayout(categoryId: string) {
   }
 }
 
-// Resimli Kıyafet Overlay — gerçek ürün fotoğrafı
+// Resimli Kıyafet Overlay — düz yatay (flat-lay) ürün fotoğrafı manken üzerinde
 const ImageGarmentOverlay: React.FC<{ product: Product; rotationDeg: number }> = ({ product, rotationDeg }) => {
   const layout = getGarmentLayout(product.categoryId);
   return (
@@ -293,21 +345,15 @@ const ImageGarmentOverlay: React.FC<{ product: Product; rotationDeg: number }> =
       ...layout,
       transform: `rotateY(${rotationDeg}deg)`,
       transition: 'transform 0.6s ease',
-      borderRadius: 12,
+      borderRadius: 10,
       overflow: 'hidden',
-      boxShadow: '0 8px 40px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.1)',
+      boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
     }}>
       <img
         src={product.imageUrl}
         alt={product.name}
-        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
       />
-      {/* Kenar fade — siluete karışsın */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: 'linear-gradient(to bottom, rgba(5,9,18,0.25) 0%, transparent 20%, transparent 80%, rgba(5,9,18,0.35) 100%)',
-        borderRadius: 12,
-      }} />
     </div>
   );
 };
@@ -331,13 +377,20 @@ const GarmentOverlay: React.FC<{ product: Product; colorHex: string; rotationDeg
 // ── Body Tracking Noktaları ───────────────────────────────────────────────────
 const TrackingOverlay: React.FC = () => {
   const points = [
-    { x: 100, y: 52 }, { x: 100, y: 88 },
-    { x: 57, y: 105 }, { x: 143, y: 105 },
-    { x: 36, y: 170 }, { x: 164, y: 170 },
-    { x: 29, y: 228 }, { x: 171, y: 228 },
-    { x: 66, y: 272 }, { x: 134, y: 272 },
-    { x: 60, y: 350 }, { x: 140, y: 350 },
-    { x: 58, y: 448 }, { x: 142, y: 448 },
+    { x: 100, y: 43 },  // Baş
+    { x: 100, y: 88 },  // Boyun
+    { x: 42,  y: 102 }, // Sol omuz
+    { x: 158, y: 102 }, // Sağ omuz
+    { x: 22,  y: 170 }, // Sol dirsek
+    { x: 178, y: 170 }, // Sağ dirsek
+    { x: 30,  y: 230 }, // Sol el
+    { x: 170, y: 230 }, // Sağ el
+    { x: 72,  y: 268 }, // Sol kalça
+    { x: 128, y: 268 }, // Sağ kalça
+    { x: 66,  y: 380 }, // Sol diz
+    { x: 134, y: 380 }, // Sağ diz
+    { x: 72,  y: 458 }, // Sol ayak
+    { x: 128, y: 458 }, // Sağ ayak
   ];
   const bones = [
     [0,1],[1,2],[1,3],[2,4],[3,5],[4,6],[5,7],[2,8],[3,9],[8,10],[9,11],[10,12],[11,13]
@@ -596,7 +649,7 @@ export const MirrorApp: React.FC<Props> = ({
             <div className="relative" style={{ width: 220, height: 380 }}>
               <div className="absolute inset-0 rounded-3xl"
                 style={{ background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.1)' }} />
-              <BodySilhouette rotationDeg={0} />
+              <MannequinSilhouette rotationDeg={0} />
               {/* Tarama çizgisi */}
               <div className="absolute left-0 right-0 h-0.5 animate-scan"
                 style={{ background: 'linear-gradient(90deg,transparent,rgba(59,130,246,0.5),transparent)', pointerEvents: 'none' }} />
@@ -643,7 +696,7 @@ export const MirrorApp: React.FC<Props> = ({
                 style={{ background: `radial-gradient(ellipse, ${selectedColor?.hex ?? '#3b82f6'}22, transparent)` }} />
 
               {/* Siluet */}
-              <BodySilhouette rotationDeg={rotationDeg} />
+              <MannequinSilhouette rotationDeg={rotationDeg} />
 
               {/* Kıyafet overlay — AI yüklenince göster */}
               <AnimatePresence>
