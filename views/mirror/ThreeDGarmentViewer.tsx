@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { Product } from '../../types';
+import { loadModel } from '../../utils/modelStore';
 
 interface Props {
   product: Product;
@@ -94,55 +95,58 @@ const ThreeDGarmentViewer: React.FC<Props> = ({ product, rotationDeg }) => {
 
     // ── Model Yükle ──────────────────────────────────────────────
     const loader = new FBXLoader();
-    let objectUrl = '';
+    let destroyed = false;
 
-    if (product.modelUrl.startsWith('data:') || product.modelUrl.startsWith('blob:')) {
-      objectUrl = product.modelUrl.startsWith('data:')
-        ? base64ToObjectURL(product.modelUrl)
-        : product.modelUrl;
+    const doLoad = (url: string, isBlob: boolean) => {
+      if (destroyed) { if (isBlob) URL.revokeObjectURL(url); return; }
+      loader.load(
+        url,
+        (model) => {
+          if (destroyed) return;
+          if (isBlob) URL.revokeObjectURL(url);
+
+          const box  = new THREE.Box3().setFromObject(model);
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+
+          const targetHeight = 3.2 * getCategoryScale(product.categoryId);
+          model.scale.setScalar(targetHeight / maxDim);
+
+          box.setFromObject(model);
+          model.position.sub(box.getCenter(new THREE.Vector3()));
+          model.position.y += getCategoryYOffset(product.categoryId);
+
+          model.position.y += 2.5;
+          let elapsed = 0;
+          const dropAnim = setInterval(() => {
+            elapsed += 0.06;
+            model.position.y = THREE.MathUtils.lerp(model.position.y, getCategoryYOffset(product.categoryId), 0.15);
+            if (elapsed > 1.5) clearInterval(dropAnim);
+          }, 16);
+
+          scene.add(model);
+          modelRef.current = model;
+          setLoaded(true);
+        },
+        undefined,
+        () => { if (!destroyed) setError(true); }
+      );
+    };
+
+    const modelUrl = product.modelUrl!;
+    if (modelUrl.startsWith('idb://')) {
+      const key = modelUrl.slice(6);
+      loadModel(key).then(dataUrl => {
+        if (!dataUrl) { if (!destroyed) setError(true); return; }
+        doLoad(base64ToObjectURL(dataUrl), true);
+      }).catch(() => { if (!destroyed) setError(true); });
+    } else if (modelUrl.startsWith('data:')) {
+      doLoad(base64ToObjectURL(modelUrl), true);
+    } else if (modelUrl.startsWith('blob:')) {
+      doLoad(modelUrl, false);
     } else {
-      objectUrl = product.modelUrl; // harici URL
+      doLoad(modelUrl, false);
     }
-
-    loader.load(
-      objectUrl,
-      (model) => {
-        if (objectUrl.startsWith('blob:')) URL.revokeObjectURL(objectUrl);
-
-        // Bounding box → otomatik ölçekleme
-        const box  = new THREE.Box3().setFromObject(model);
-        const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z);
-
-        const targetHeight = 3.2 * getCategoryScale(product.categoryId);
-        const scale = targetHeight / maxDim;
-        model.scale.setScalar(scale);
-
-        // Merkeze al
-        box.setFromObject(model);
-        const center = box.getCenter(new THREE.Vector3());
-        model.position.sub(center);
-
-        // Kategori bazlı dikey offset
-        model.position.y += getCategoryYOffset(product.categoryId);
-
-        // Giydirme animasyonu: yukarıdan aşağı süzülür
-        model.position.y += 2.5;
-        let elapsed = 0;
-        const dropAnim = setInterval(() => {
-          elapsed += 0.06;
-          const target = getCategoryYOffset(product.categoryId);
-          model.position.y = THREE.MathUtils.lerp(model.position.y, target, 0.15);
-          if (elapsed > 1.5) clearInterval(dropAnim);
-        }, 16);
-
-        scene.add(model);
-        modelRef.current = model;
-        setLoaded(true);
-      },
-      undefined,
-      () => { setError(true); }
-    );
 
     // ── Render Döngüsü ───────────────────────────────────────────
     const animate = () => {
@@ -152,6 +156,7 @@ const ThreeDGarmentViewer: React.FC<Props> = ({ product, rotationDeg }) => {
     animate();
 
     return () => {
+      destroyed = true;
       cancelAnimationFrame(animRef.current);
       renderer.dispose();
       if (container.contains(renderer.domElement)) {

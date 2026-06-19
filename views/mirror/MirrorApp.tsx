@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Peer from 'peerjs';
 import { MirrorState, Product } from '../../types';
+import { loadModel, MANNEQUIN_KEY } from '../../utils/modelStore';
 
 const ThreeDGarmentViewer = lazy(() => import('./ThreeDGarmentViewer'));
+const ThreeDMannequinViewer = lazy(() => import('./ThreeDMannequinViewer'));
 
 interface Props {
   sharedProduct: Product | null;
@@ -498,6 +500,18 @@ const TrackingOverlay: React.FC = () => {
   );
 };
 
+// ── Manken Görüntüleyici (3D veya SVG) ───────────────────────────────────────
+const MannequinDisplay: React.FC<{ rotationDeg: number; mannequin3dUrl: string }> = ({ rotationDeg, mannequin3dUrl }) => {
+  if (mannequin3dUrl) {
+    return (
+      <Suspense fallback={<HumanSilhouette rotationDeg={rotationDeg} />}>
+        <ThreeDMannequinViewer mannequinUrl={mannequin3dUrl} rotationDeg={rotationDeg} />
+      </Suspense>
+    );
+  }
+  return <HumanSilhouette rotationDeg={rotationDeg} />;
+};
+
 // ── Ana Mirror App ─────────────────────────────────────────────────────────────
 export const MirrorApp: React.FC<Props> = ({
   sharedProduct, sharedColor, sharedSize, onSessionStart, sessionActive, rotation = 0
@@ -507,6 +521,7 @@ export const MirrorApp: React.FC<Props> = ({
   const [aiProgress, setAiProgress] = useState(0);
   const [showTracking, setShowTracking] = useState(false);
   const [rotationDeg, setRotationDeg] = useState(0);
+  const [mannequin3dUrl, setMannequin3dUrl] = useState('');
 
   // PeerJS state
   const [peerId, setPeerId] = useState('');
@@ -529,6 +544,10 @@ export const MirrorApp: React.FC<Props> = ({
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    loadModel(MANNEQUIN_KEY).then(url => { if (url) setMannequin3dUrl(url); }).catch(() => {});
   }, []);
 
   // PeerJS: aynanın peer bağlantısı
@@ -733,7 +752,7 @@ export const MirrorApp: React.FC<Props> = ({
             <div className="relative" style={{ width: 220, height: 380 }}>
               <div className="absolute inset-0 rounded-3xl"
                 style={{ background: 'rgba(59,130,246,0.04)', border: '1px solid rgba(59,130,246,0.1)' }} />
-              <HumanSilhouette rotationDeg={0} />
+              <MannequinDisplay rotationDeg={0} mannequin3dUrl={mannequin3dUrl} />
               {/* Tarama çizgisi */}
               <div className="absolute left-0 right-0 h-0.5 animate-scan"
                 style={{ background: 'linear-gradient(90deg,transparent,rgba(59,130,246,0.5),transparent)', pointerEvents: 'none' }} />
@@ -780,7 +799,7 @@ export const MirrorApp: React.FC<Props> = ({
                 style={{ background: `radial-gradient(ellipse, ${selectedColor?.hex ?? '#3b82f6'}22, transparent)` }} />
 
               {/* Siluet */}
-              <HumanSilhouette rotationDeg={rotationDeg} />
+              <MannequinDisplay rotationDeg={rotationDeg} mannequin3dUrl={mannequin3dUrl} />
 
               {/* Kıyafet overlay — AI yüklenince göster */}
               <AnimatePresence>

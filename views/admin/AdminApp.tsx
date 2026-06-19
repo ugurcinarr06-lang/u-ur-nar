@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AdminView, Product } from '../../types';
 import {
@@ -6,6 +6,7 @@ import {
   USERS, SUBSCRIPTION_TIERS, TOP_PRODUCTS, CATEGORIES
 } from '../../data';
 import { getAllProducts, saveCustomProduct, deleteCustomProduct, generateProductId } from '../../utils/productStore';
+import { saveModel, loadModel, deleteModel, MANNEQUIN_KEY } from '../../utils/modelStore';
 import { MetricCard, StatusDot, GlassCard, Badge, ProgressBar } from '../../components/shared/GlassCard';
 import { LineChart, BarChart, DonutChart } from '../../components/shared/MiniChart';
 
@@ -213,17 +214,19 @@ const Analytics: React.FC = () => {
 };
 
 // ─── Ürün Ekleme Modalı ────────────────────────────────────────────────────────
-const MAX_MODEL_BYTES = 4 * 1024 * 1024; // 4 MB
+const MAX_MODEL_MB = 500;
 
 const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = ({ onClose, onSaved }) => {
   const fileRef  = useRef<HTMLInputElement>(null);
   const modelRef = useRef<HTMLInputElement>(null);
+  const productIdRef = useRef<string>(generateProductId());
   const [form, setForm] = useState({
     name: '', brand: '', price: '', categoryId: 'cat-1', description: '',
     sizes: 'S,M,L,XL', imageUrl: '', imagePreview: '',
-    modelUrl: '', modelName: '',
+    modelName: '',
   });
   const [saving, setSaving] = useState(false);
+  const [modelLoading, setModelLoading] = useState(false);
   const [modelError, setModelError] = useState('');
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -241,14 +244,25 @@ const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = 
     const file = e.target.files?.[0];
     if (!file) return;
     setModelError('');
-    if (file.size > MAX_MODEL_BYTES) {
-      setModelError(`Dosya çok büyük: ${(file.size / 1048576).toFixed(1)} MB (maks 4 MB)`);
+    if (file.size > MAX_MODEL_MB * 1024 * 1024) {
+      setModelError(`Dosya çok büyük: ${(file.size / 1048576).toFixed(1)} MB (maks ${MAX_MODEL_MB} MB)`);
       return;
     }
+    setModelLoading(true);
     const reader = new FileReader();
-    reader.onload = ev => {
-      const dataUrl = ev.target?.result as string;
-      setForm(f => ({ ...f, modelUrl: dataUrl, modelName: file.name }));
+    reader.onload = async ev => {
+      try {
+        const dataUrl = ev.target?.result as string;
+        await saveModel(`model-${productIdRef.current}`, dataUrl);
+        setForm(f => ({ ...f, modelName: file.name }));
+      } catch {
+        setModelError('Model kaydedilemedi — depolama hatası');
+      }
+      setModelLoading(false);
+    };
+    reader.onerror = () => {
+      setModelError('Dosya okunamadı');
+      setModelLoading(false);
     };
     reader.readAsDataURL(file);
   };
@@ -258,7 +272,7 @@ const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = 
     setSaving(true);
     const cat = CATEGORIES.find(c => c.id === form.categoryId)!;
     const product: Product = {
-      id: generateProductId(),
+      id: productIdRef.current,
       categoryId: form.categoryId,
       categoryName: cat.name,
       name: form.name,
@@ -273,7 +287,7 @@ const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = 
       tags: ['custom'],
       tryOnCount: 0, favoriteCount: 0, rating: 5.0, reviewCount: 0,
       isAvailable: true, isFeatured: false, isNew: true,
-      ...(form.modelUrl ? { modelUrl: form.modelUrl } : {}),
+      ...(form.modelName ? { modelUrl: `idb://model-${productIdRef.current}` } : {}),
     };
     saveCustomProduct(product);
     setTimeout(() => { setSaving(false); onSaved(); onClose(); }, 400);
@@ -365,13 +379,18 @@ const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = 
               <span style={{ fontSize: 10, color: '#8b5cf6', background: 'rgba(139,92,246,0.15)', padding: '1px 7px', borderRadius: 20, fontWeight: 600 }}>
                 Sanal Giydirme
               </span>
-              <span style={{ fontSize: 10, color: '#555', marginLeft: 'auto' }}>max 4 MB</span>
+              <span style={{ fontSize: 10, color: '#555', marginLeft: 'auto' }}>maks {MAX_MODEL_MB} MB</span>
             </div>
             <div
               className="rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all"
-              style={{ borderColor: form.modelUrl ? 'rgba(139,92,246,0.6)' : 'rgba(255,255,255,0.08)', height: 90, background: form.modelUrl ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.02)' }}
-              onClick={() => modelRef.current?.click()}>
-              {form.modelUrl ? (
+              style={{ borderColor: form.modelName ? 'rgba(139,92,246,0.6)' : 'rgba(255,255,255,0.08)', height: 90, background: form.modelName ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.02)' }}
+              onClick={() => !modelLoading && modelRef.current?.click()}>
+              {modelLoading ? (
+                <div className="flex flex-col items-center gap-2">
+                  <div style={{ width: 24, height: 24, borderRadius: '50%', border: '3px solid transparent', borderTopColor: '#8b5cf6', animation: 'spin 0.8s linear infinite' }} />
+                  <span style={{ fontSize: 11, color: 'rgba(139,92,246,0.8)' }}>Yükleniyor...</span>
+                </div>
+              ) : form.modelName ? (
                 <div className="flex flex-col items-center gap-1">
                   <span className="text-2xl">🎭</span>
                   <span style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 600 }}>{form.modelName}</span>
@@ -387,7 +406,7 @@ const AddProductModal: React.FC<{ onClose: () => void; onSaved: () => void }> = 
             </div>
             <input ref={modelRef} type="file" accept=".fbx" className="hidden" onChange={handleModelFile} />
             {modelError && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 6 }}>{modelError}</p>}
-            {form.modelUrl && (
+            {form.modelName && !modelLoading && (
               <p style={{ fontSize: 10, color: '#555', marginTop: 4 }}>
                 Kıyafet insan figürü üzerine 3D olarak yerleştirilecek
               </p>
@@ -764,33 +783,127 @@ const Subscriptions: React.FC = () => (
 );
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
-const Settings: React.FC = () => (
-  <div className="flex flex-col gap-6">
-    <h1 className="text-2xl font-bold">Settings</h1>
-    {[
-      { section: 'Platform', items: ['Platform Name', 'Support Email', 'Default Currency', 'Default Timezone'] },
-      { section: 'AI Engine', items: ['AI Mode (API / Self-Hosted)', 'API Key (FASHN AI)', 'Confidence Threshold', 'Max Resolution'] },
-      { section: 'Security', items: ['JWT Expiry', 'MFA Enforcement', 'IP Whitelist', 'Audit Log Retention'] },
-      { section: 'Notifications', items: ['Mirror Offline Alerts', 'Low Session Threshold', 'Billing Alerts', 'Weekly Reports'] },
-    ].map(group => (
-      <div key={group.section} className="glass rounded-2xl p-5">
-        <h3 className="text-sm font-semibold mb-4" style={{ color: '#888' }}>{group.section}</h3>
-        <div className="flex flex-col gap-3">
-          {group.items.map(item => (
-            <div key={item} className="flex items-center justify-between py-2"
-              style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-              <span className="text-sm">{item}</span>
-              <div className="flex items-center gap-2">
-                <div className="w-20 h-1 rounded-full shimmer" />
-                <button className="glass px-3 py-1 rounded-lg text-xs text-blue-400">Edit</button>
-              </div>
-            </div>
-          ))}
+const MAX_MANNEQUIN_MB = 500;
+
+const Settings: React.FC = () => {
+  const mannequinRef = useRef<HTMLInputElement>(null);
+  const [mannequinName, setMannequinName] = useState('');
+  const [mannequinReady, setMannequinReady] = useState(false);
+  const [mannequinLoading, setMannequinLoading] = useState(false);
+  const [mannequinError, setMannequinError] = useState('');
+
+  useEffect(() => {
+    loadModel(MANNEQUIN_KEY).then(data => { if (data) setMannequinReady(true); }).catch(() => {});
+  }, []);
+
+  const handleMannequinFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setMannequinError('');
+    if (file.size > MAX_MANNEQUIN_MB * 1024 * 1024) {
+      setMannequinError(`Dosya çok büyük: ${(file.size / 1048576).toFixed(1)} MB (maks ${MAX_MANNEQUIN_MB} MB)`);
+      return;
+    }
+    setMannequinLoading(true);
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      try {
+        const dataUrl = ev.target?.result as string;
+        await saveModel(MANNEQUIN_KEY, dataUrl);
+        setMannequinName(file.name);
+        setMannequinReady(true);
+      } catch {
+        setMannequinError('Manken kaydedilemedi — depolama hatası');
+      }
+      setMannequinLoading(false);
+    };
+    reader.onerror = () => { setMannequinError('Dosya okunamadı'); setMannequinLoading(false); };
+    reader.readAsDataURL(file);
+  };
+
+  const removeMannequin = () => {
+    deleteModel(MANNEQUIN_KEY).catch(() => {});
+    setMannequinName('');
+    setMannequinReady(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-bold">Ayarlar</h1>
+
+      {/* ── 3D Manken Yükle ── */}
+      <div className="glass rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-2">
+          <h3 className="text-sm font-semibold" style={{ color: '#888' }}>3D Manken Modeli</h3>
+          <span style={{ fontSize: 10, color: '#8b5cf6', background: 'rgba(139,92,246,0.15)', padding: '1px 7px', borderRadius: 20, fontWeight: 600 }}>
+            Ayna Görünümü
+          </span>
         </div>
+        <p className="text-xs mb-4" style={{ color: '#555' }}>
+          Aynada görünecek 3D manken modelini yükleyin. USDZ formatında tam vücut modeli önerilir. Maks {MAX_MANNEQUIN_MB} MB.
+        </p>
+        <div
+          className="rounded-xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all"
+          style={{
+            borderColor: mannequinReady ? 'rgba(139,92,246,0.6)' : 'rgba(255,255,255,0.08)',
+            height: 110,
+            background: mannequinReady ? 'rgba(139,92,246,0.08)' : 'rgba(255,255,255,0.02)',
+          }}
+          onClick={() => !mannequinLoading && mannequinRef.current?.click()}>
+          {mannequinLoading ? (
+            <div className="flex flex-col items-center gap-2">
+              <div style={{ width: 28, height: 28, borderRadius: '50%', border: '3px solid transparent', borderTopColor: '#8b5cf6', animation: 'spin 0.8s linear infinite' }} />
+              <span style={{ fontSize: 11, color: 'rgba(139,92,246,0.8)' }}>Yükleniyor... (büyük dosyalar biraz sürebilir)</span>
+            </div>
+          ) : mannequinReady ? (
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-2xl">🧍</span>
+              <span style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 600 }}>{mannequinName || '3D Manken Yüklü ✓'}</span>
+              <span style={{ fontSize: 10, color: '#555' }}>Değiştirmek için tıklayın</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-1 opacity-40">
+              <span className="text-2xl">🧍</span>
+              <span style={{ fontSize: 12 }}>USDZ manken modeli seçin</span>
+              <span style={{ fontSize: 10 }}>Maks {MAX_MANNEQUIN_MB} MB · .usdz formatı</span>
+            </div>
+          )}
+        </div>
+        <input ref={mannequinRef} type="file" accept=".usdz" className="hidden" onChange={handleMannequinFile} />
+        {mannequinError && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 6 }}>{mannequinError}</p>}
+        {mannequinReady && !mannequinLoading && (
+          <button onClick={removeMannequin} className="mt-3 text-xs px-3 py-1.5 rounded-lg"
+            style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+            Mankeni Kaldır
+          </button>
+        )}
       </div>
-    ))}
-  </div>
-);
+
+      {[
+        { section: 'Platform', items: ['Platform Name', 'Support Email', 'Default Currency', 'Default Timezone'] },
+        { section: 'AI Engine', items: ['AI Mode (API / Self-Hosted)', 'API Key (FASHN AI)', 'Confidence Threshold', 'Max Resolution'] },
+        { section: 'Security', items: ['JWT Expiry', 'MFA Enforcement', 'IP Whitelist', 'Audit Log Retention'] },
+        { section: 'Notifications', items: ['Mirror Offline Alerts', 'Low Session Threshold', 'Billing Alerts', 'Weekly Reports'] },
+      ].map(group => (
+        <div key={group.section} className="glass rounded-2xl p-5">
+          <h3 className="text-sm font-semibold mb-4" style={{ color: '#888' }}>{group.section}</h3>
+          <div className="flex flex-col gap-3">
+            {group.items.map(item => (
+              <div key={item} className="flex items-center justify-between py-2"
+                style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <span className="text-sm">{item}</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-20 h-1 rounded-full shimmer" />
+                  <button className="glass px-3 py-1 rounded-lg text-xs text-blue-400">Edit</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 // ─── Main AdminApp ──────────────────────────────────────────────────────────────
 export const AdminApp: React.FC = () => {
