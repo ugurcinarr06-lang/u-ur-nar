@@ -86,6 +86,30 @@ api/
   translate.ts               Vercel serverless fonksiyon
 ```
 
+## Android'de Uygulama Olarak Kurma (PWA)
+
+Uygulama bir **PWA**'dır (Progressive Web App): Vercel'de yayınlandıktan sonra
+telefona "uygulama" gibi kurulabilir. Ses tanıma için **Chrome** gerekir.
+
+**Kullanıcı için (telefonda):**
+1. Chrome ile `https://<proje>.vercel.app` adresini aç.
+2. Sağ üst menü (⋮) → **Uygulamayı yükle** / **Ana ekrana ekle**.
+3. Artık ana ekranda ikonuyla, tam ekran (tarayıcı çubuğu olmadan) açılır.
+
+PWA'nın çalışması için tek koşul **HTTPS** üzerinde yayında olmaktır — Vercel
+bunu otomatik sağlar. Manifest, service worker ve ikonlar build sırasında
+`vite-plugin-pwa` ile otomatik üretilir.
+
+İkonları değiştirmek için `public/icon-source.svg`'yi düzenleyip şunu çalıştır:
+```
+node scripts/gen-icons.mjs
+```
+
+> **Play Store'a çıkmak isterseniz:** Bu PWA, [Bubblewrap](https://github.com/GoogleChromeLabs/bubblewrap)
+> ile bir **TWA** (Trusted Web Activity) paketine dönüştürülüp Play Store'a
+> yüklenebilir. Bu yöntemde uygulama Chrome motoruyla çalıştığı için ses
+> tanıma sorunsuz çalışmaya devam eder.
+
 ## Sonraki Adımlar
 
 - Ayarlar ekranı (otomatik seslendirme, TTS hızı, font boyutu, tema).

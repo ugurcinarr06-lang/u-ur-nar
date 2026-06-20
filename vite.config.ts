@@ -1,6 +1,7 @@
 import path from 'path';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
   // GEMINI_API_KEY yalnızca sunucu/geliştirme tarafında kullanılır;
@@ -46,7 +47,50 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
     },
-    plugins: [react(), devTranslateApi],
+    plugins: [
+      react(),
+      devTranslateApi,
+      VitePWA({
+        registerType: 'autoUpdate',
+        injectRegister: 'auto',
+        includeAssets: [
+          'favicon-32x32.png',
+          'apple-touch-icon-180x180.png',
+          'icon-source.svg',
+        ],
+        manifest: {
+          name: 'Canlı Çeviri',
+          short_name: 'Canlı Çeviri',
+          description:
+            'Yüz yüze, gerçek zamanlı, çift yönlü konuşma çevirisi uygulaması.',
+          lang: 'tr',
+          theme_color: '#0284c7',
+          background_color: '#f0f9ff',
+          display: 'standalone',
+          orientation: 'portrait',
+          start_url: '/',
+          scope: '/',
+          icons: [
+            { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+            { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+            {
+              src: 'maskable-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable',
+            },
+          ],
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+          // Çeviri API'si (serverless) asla önbelleğe alınmaz/yakalanmaz.
+          navigateFallbackDenylist: [/^\/api/],
+        },
+        devOptions: {
+          enabled: false,
+        },
+      }),
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
