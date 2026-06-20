@@ -1,20 +1,117 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Canlı Çeviri (Live Translation)
 
-# Run and deploy your AI Studio app
+Yüz yüze, gerçek zamanlı, çift yönlü konuşma çevirisi yapan web uygulaması.
 
-This contains everything you need to run your app locally.
+İki kişi telefonu aralarına koyar; ekran ortadan ikiye bölünür. Üst yarı
+karşıdaki kişiye dönük olacak şekilde **180° döndürülmüştür**, alt yarı
+normal yöndedir. Bir kişi kendi tarafındaki "Konuşmak için basılı tut"
+butonuna basıp konuşur; uygulama dinler, çevirir, karşı tarafın paneline
+yazar ve sesli okur.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1D2hQbWaB7Ol-82AUBW1w0ufvhLUpYbcJ
+## Özellikler
 
-## Run Locally
+- **Dil seçim ekranı:** Sizin diliniz / karşı tarafın dili, hızlı "swap"
+  butonu ve son kullanılan dil çiftleri (8 dil, Arapça/Farsça RTL desteği).
+- **Split-screen konuşma ekranı:** Üst yarı 180° döndürülmüş, alt yarı normal.
+- **Bas-konuş → çeviri → seslendirme zinciri:**
+  - **STT:** Web Speech API (tarayıcıda, anahtarsız) — Chrome/Edge önerilir.
+  - **Çeviri:** Gemini (`gemini-2.5-flash`) — **serverless fonksiyon** üzerinden.
+  - **TTS:** Web Speech API ile otomatik seslendirme.
+- **Konuşma geçmişi:** Baloncuklar (kim/orijinal/çeviri), dokununca tekrar oku.
+- Büyük dokunma hedefleri, büyük font, yüksek kontrast (yaşlı/acele eden
+  kullanıcı dostu).
 
-**Prerequisites:**  Node.js
+## Mimari (Önemli — API anahtarı güvenliği)
 
+Çeviri, tarayıcıda **değil**, sunucu tarafında yapılır. İstemci
+`POST /api/translate`'e istek atar; `GEMINI_API_KEY` yalnızca sunucu
+ortamında okunur ve istemci paketine **asla gömülmez**.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+- **Vercel'de:** `api/translate.ts` serverless fonksiyon olarak çalışır.
+- **Yerelde (`npm run dev`):** `vite.config.ts` içindeki bir geliştirme
+  middleware'i aynı fonksiyonu taklit eder, böylece çeviri yerelde de çalışır.
+
+## Teknoloji
+
+- React 19 + TypeScript + Vite
+- Tailwind CSS (CDN), framer-motion, lucide-react
+- Sunucu: Vercel Serverless Functions (`@vercel/node`) + `@google/genai`
+
+## Yerelde Çalıştırma
+
+**Gereksinim:** Node.js
+
+1. Bağımlılıkları kur: `npm install`
+2. `.env.example`'ı `.env.local` olarak kopyalayıp Gemini anahtarını yaz:
+   ```
+   GEMINI_API_KEY=AIza...
+   ```
+   Anahtarı buradan al: https://aistudio.google.com/apikey
+3. Sunucuyu başlat: `npm run dev`
+4. **Chrome veya Edge** ile `http://localhost:3000` adresini aç, mikrofon
+   iznini ver. (Web Speech API Firefox'ta yoktur.)
+
+## Vercel'e Deploy
+
+1. Bu repoyu GitHub'a gönder (zaten yapıldı).
+2. https://vercel.com → **Add New → Project** → bu GitHub reposunu içe aktar.
+3. Framework otomatik **Vite** olarak algılanır (`vercel.json` ile sabitlenmiştir).
+4. **Settings → Environment Variables** altına ekle:
+   - `GEMINI_API_KEY` = Gemini API anahtarın
+5. **Deploy**. Bittiğinde `https://<proje>.vercel.app` adresinde yayında olur.
+
+> Not: Anahtarı değiştirdikten sonra yeniden **Redeploy** etmen gerekir.
+
+## Dosya Yapısı
+
+```
+App.tsx                      Üst seviye durum + ekran yönlendirme
+types.ts                     Tip tanımları
+data.ts                      Diller, BCP-47 etiketleri, son çiftler
+views/
+  LanguageSelect.tsx         Dil seçim ekranı
+  Conversation.tsx           Split-screen konuşma ekranı (zincirin yöneticisi)
+components/
+  LanguagePicker.tsx         Dil seçim alt sayfası
+  SpeakerPanel.tsx           Tek bir konuşmacı yarısı (döndürülebilir)
+  HistoryModal.tsx           Konuşma geçmişi baloncukları
+hooks/
+  useSpeechRecognition.ts    Web Speech API (bas-konuş) sarmalayıcı
+services/
+  translation.ts             /api/translate'e fetch (istemci)
+  tts.ts                     Yerel seslendirme (Web Speech API)
+lib/
+  gemini.ts                  Paylaşılan çeviri çekirdeği (sunucu)
+api/
+  translate.ts               Vercel serverless fonksiyon
+```
+
+## Android'de Uygulama Olarak Kurma (PWA)
+
+Uygulama bir **PWA**'dır (Progressive Web App): Vercel'de yayınlandıktan sonra
+telefona "uygulama" gibi kurulabilir. Ses tanıma için **Chrome** gerekir.
+
+**Kullanıcı için (telefonda):**
+1. Chrome ile `https://<proje>.vercel.app` adresini aç.
+2. Sağ üst menü (⋮) → **Uygulamayı yükle** / **Ana ekrana ekle**.
+3. Artık ana ekranda ikonuyla, tam ekran (tarayıcı çubuğu olmadan) açılır.
+
+PWA'nın çalışması için tek koşul **HTTPS** üzerinde yayında olmaktır — Vercel
+bunu otomatik sağlar. Manifest, service worker ve ikonlar build sırasında
+`vite-plugin-pwa` ile otomatik üretilir.
+
+İkonları değiştirmek için `public/icon-source.svg`'yi düzenleyip şunu çalıştır:
+```
+node scripts/gen-icons.mjs
+```
+
+> **Play Store'a çıkmak isterseniz:** Bu PWA, [Bubblewrap](https://github.com/GoogleChromeLabs/bubblewrap)
+> ile bir **TWA** (Trusted Web Activity) paketine dönüştürülüp Play Store'a
+> yüklenebilir. Bu yöntemde uygulama Chrome motoruyla çalıştığı için ses
+> tanıma sorunsuz çalışmaya devam eder.
+
+## Sonraki Adımlar
+
+- Ayarlar ekranı (otomatik seslendirme, TTS hızı, font boyutu, tema).
+- **Mod B:** İki telefon, QR/oda kodu ile WebSocket senkronu.
+- Çevrimdışı dil paketleri, cihaz-üstü gizlilik.

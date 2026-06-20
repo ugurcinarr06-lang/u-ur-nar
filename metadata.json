@@ -1,5 +1,5 @@
 {
-  "name": "Copy of Göcek Rehberi",
-  "description": "Göcek için kapsamlı gezi, tekne ve hizmet rehberi.",
+  "name": "Canlı Çeviri",
+  "description": "Yüz yüze, gerçek zamanlı çift yönlü konuşma çevirisi uygulaması (MVP iskeleti).",
   "requestFramePermissions": []
 }
