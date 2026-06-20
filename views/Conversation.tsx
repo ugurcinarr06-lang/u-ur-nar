@@ -6,7 +6,7 @@ import { bcp47, findLanguage } from '../data';
 import { SpeakerPanel } from '../components/SpeakerPanel';
 import { HistoryModal } from '../components/HistoryModal';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
-import { translate, translationConfigured } from '../services/translation';
+import { translate } from '../services/translation';
 import { speak } from '../services/tts';
 
 interface ConversationProps {
@@ -32,7 +32,12 @@ function describeError(code: string): string {
     case 'unsupported':
       return 'Tarayıcınız ses tanımayı desteklemiyor (Chrome veya Edge önerilir).';
     case 'NO_API_KEY':
-      return 'Çeviri için API anahtarı gerekli. .env.local içine GEMINI_API_KEY ekleyin.';
+      return 'Çeviri sunucusunda API anahtarı tanımlı değil (GEMINI_API_KEY).';
+    case 'NETWORK':
+      return 'Çeviri sunucusuna ulaşılamadı. İnternet bağlantınızı kontrol edin.';
+    case 'TRANSLATE_FAILED':
+    case 'EMPTY':
+      return 'Çeviri başarısız oldu. Lütfen tekrar deneyin.';
     case 'aborted':
       return '';
     default:
@@ -96,9 +101,6 @@ export const Conversation: React.FC<ConversationProps> = ({
   const handlePressStart = (side: Side) => {
     if (active || processing) return; // tek seferde tek kişi
     setError('');
-    if (!translationConfigured) {
-      setError(describeError('NO_API_KEY'));
-    }
     setActive(side);
     const lang = side === 'A' ? myLang : otherLang;
     sr.start(bcp47(lang), {
