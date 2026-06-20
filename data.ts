@@ -39,3 +39,18 @@ export const PLACEHOLDER_TEXT: Record<string, string> = {
 
 export const placeholderFor = (code: string): string =>
   PLACEHOLDER_TEXT[code] ?? PLACEHOLDER_TEXT.en;
+
+// Ses tanıma (STT) ve seslendirme (TTS) için BCP-47 bölge etiketleri.
+// Doğru aksan/ses seçimi için kısa kodu tam etikete eşleriz.
+export const BCP47: Record<string, string> = {
+  tr: 'tr-TR',
+  en: 'en-US',
+  ar: 'ar-SA',
+  de: 'de-DE',
+  ru: 'ru-RU',
+  fr: 'fr-FR',
+  es: 'es-ES',
+  fa: 'fa-IR',
+};
+
+export const bcp47 = (code: string): string => BCP47[code] ?? code;

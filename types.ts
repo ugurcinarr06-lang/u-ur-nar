@@ -17,3 +17,17 @@ export interface LanguagePair {
   fromCode: string;
   toCode: string;
 }
+
+// Bir konuşmacı panelinin anlık durumu.
+export type PanelStatus = 'idle' | 'listening' | 'translating';
+
+// Konuşma geçmişindeki tek bir satır (kim, ne dedi, çevirisi).
+export interface HistoryEntry {
+  id: string;
+  side: 'A' | 'B';   // A = alt/sizin, B = üst/karşı taraf
+  fromCode: string;
+  toCode: string;
+  original: string;
+  translation: string;
+  ts: number;
+}

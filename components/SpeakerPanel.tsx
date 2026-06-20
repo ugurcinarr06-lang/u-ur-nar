@@ -1,13 +1,14 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Mic, Volume2 } from 'lucide-react';
-import { Language } from '../types';
+import { Loader2, Mic, Volume2 } from 'lucide-react';
+import { Language, PanelStatus } from '../types';
 
 interface SpeakerPanelProps {
   language: Language;     // Bu panelin sahibinin okuduğu dil
-  text: string;          // Gösterilecek çeviri metni (şimdilik placeholder)
+  text: string;          // Gösterilecek çeviri metni
+  status: PanelStatus;   // idle | listening | translating
   rotated?: boolean;     // Üst yarı için 180° döndürme
-  listening: boolean;    // Bu panelin butonu basılı mı?
+  disabled?: boolean;    // Karşı taraf konuşurken kilitle
   accent: 'sky' | 'emerald';
   onPressStart: () => void;
   onPressEnd: () => void;
@@ -57,14 +58,16 @@ const Wave: React.FC<{ color: string }> = ({ color }) => (
 export const SpeakerPanel: React.FC<SpeakerPanelProps> = ({
   language,
   text,
+  status,
   rotated = false,
-  listening,
+  disabled = false,
   accent,
   onPressStart,
   onPressEnd,
   onSpeak,
 }) => {
   const t = THEME[accent];
+  const listening = status === 'listening';
 
   return (
     <div
@@ -88,28 +91,38 @@ export const SpeakerPanel: React.FC<SpeakerPanelProps> = ({
         </button>
       </div>
 
-      {/* Orta: çeviri metni ya da dinleme durumu */}
+      {/* Orta: çeviri metni ya da durum göstergesi */}
       <div className="flex-1 w-full flex flex-col items-center justify-center text-center px-2">
-        {listening ? (
+        {status === 'listening' && (
           <div className="flex flex-col items-center gap-3">
             <Wave color={t.wave} />
             <span className="text-slate-500 font-medium">Dinleniyor…</span>
           </div>
-        ) : (
+        )}
+        {status === 'translating' && (
+          <div className="flex flex-col items-center gap-3 text-slate-500">
+            <Loader2 size={32} className={`animate-spin ${t.icon}`} />
+            <span className="font-medium">Çevriliyor…</span>
+          </div>
+        )}
+        {status === 'idle' && (
           <p
             dir={language.rtl ? 'rtl' : 'ltr'}
-            className="text-3xl font-semibold leading-snug text-slate-800"
+            className={`text-3xl font-semibold leading-snug ${
+              text ? 'text-slate-800' : 'text-slate-300'
+            }`}
           >
-            {text}
+            {text || 'Konuşmak için aşağıdaki butona basılı tutun'}
           </p>
         )}
       </div>
 
       {/* Alt: bas-konuş butonu */}
       <button
+        disabled={disabled}
         onPointerDown={(e) => {
           e.preventDefault();
-          onPressStart();
+          if (!disabled) onPressStart();
         }}
         onPointerUp={onPressEnd}
         onPointerLeave={() => listening && onPressEnd()}
@@ -118,7 +131,7 @@ export const SpeakerPanel: React.FC<SpeakerPanelProps> = ({
           listening ? t.buttonListening : t.button
         } text-white rounded-2xl py-5 flex items-center justify-center gap-3 text-lg font-semibold shadow-md touch-none transition-transform ${
           listening ? 'scale-[1.02]' : ''
-        }`}
+        } ${disabled ? 'opacity-40' : ''}`}
       >
         <Mic size={26} />
         {listening ? 'Bırakınca durur' : 'Konuşmak için basılı tut'}
