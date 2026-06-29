@@ -1,16 +1,16 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { translateText } from '../lib/gemini';
+import { translateText } from '../lib/claude';
 
 // Vercel serverless fonksiyonu: POST /api/translate
 // Gövde: { text, from, to } → Yanıt: { translation }
-// GEMINI_API_KEY yalnızca sunucu ortamında okunur, istemciye gönderilmez.
+// ANTHROPIC_API_KEY yalnızca sunucu ortamında okunur, istemciye gönderilmez.
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'METHOD_NOT_ALLOWED' });
     return;
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     res.status(503).json({ error: 'NO_API_KEY' });
     return;

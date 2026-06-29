@@ -32,7 +32,7 @@ function describeError(code: string): string {
     case 'unsupported':
       return 'Tarayıcınız ses tanımayı desteklemiyor (Chrome veya Edge önerilir).';
     case 'NO_API_KEY':
-      return 'Çeviri sunucusunda API anahtarı tanımlı değil (GEMINI_API_KEY).';
+      return 'Çeviri sunucusunda API anahtarı tanımlı değil (ANTHROPIC_API_KEY).';
     case 'NETWORK':
       return 'Çeviri sunucusuna ulaşılamadı. İnternet bağlantınızı kontrol edin.';
     case 'TRANSLATE_FAILED':

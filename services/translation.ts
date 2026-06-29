@@ -1,6 +1,6 @@
 // İstemci tarafı çeviri servisi.
 // Artık API anahtarını tarayıcıda kullanmaz; çeviriyi serverless
-// fonksiyona (POST /api/translate) devreder. Böylece GEMINI_API_KEY
+// fonksiyona (POST /api/translate) devreder. Böylece ANTHROPIC_API_KEY
 // yalnızca sunucuda kalır ve istemci paketine gömülmez.
 export async function translate(
   text: string,
