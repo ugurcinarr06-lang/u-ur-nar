@@ -4,10 +4,10 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(({ mode }) => {
-  // GEMINI_API_KEY yalnızca sunucu/geliştirme tarafında kullanılır;
+  // ANTHROPIC_API_KEY yalnızca sunucu/geliştirme tarafında kullanılır;
   // istemci paketine ASLA gömülmez (define yok).
   const env = loadEnv(mode, '.', '');
-  const apiKey = env.GEMINI_API_KEY;
+  const apiKey = env.ANTHROPIC_API_KEY;
 
   // Yerel geliştirmede (npm run dev) Vite, /api klasörünü çalıştırmaz.
   // Bu eklenti, Vercel'deki /api/translate fonksiyonunu taklit eder ki
@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => {
           try {
             const { text, from, to } = JSON.parse(raw || '{}');
             if (!text || !from || !to) return json(400, { error: 'BAD_REQUEST' });
-            const { translateText } = await import('./lib/gemini');
+            const { translateText } = await import('./lib/claude');
             const translation = await translateText(text, from, to, apiKey);
             json(200, { translation });
           } catch {

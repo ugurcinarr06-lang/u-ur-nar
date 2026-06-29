@@ -1,6 +1,6 @@
-import { GoogleGenAI } from '@google/genai';
+import Anthropic from '@anthropic-ai/sdk';
 
-// Sunucu tarafında çalışan paylaşılan çeviri çekirdeği.
+// Sunucu tarafında çalışan paylaşılan çeviri çekirdeği (Claude / Anthropic).
 // Hem Vercel serverless fonksiyonu (api/translate.ts) hem de yerel
 // geliştirme middleware'i (vite.config.ts) bunu kullanır.
 // API anahtarı parametre olarak alınır; burada ASLA okunmaz/gömülmez.
@@ -22,22 +22,29 @@ export async function translateText(
   toCode: string,
   apiKey: string
 ): Promise<string> {
-  const ai = new GoogleGenAI({ apiKey });
+  const client = new Anthropic({ apiKey });
   const from = LANG_NAMES[fromCode] ?? fromCode;
   const to = LANG_NAMES[toCode] ?? toCode;
 
-  const prompt =
+  const system =
     `You are a professional real-time face-to-face conversation interpreter. ` +
-    `Translate the following ${from} utterance into natural, colloquial ${to}. ` +
+    `Translate the user's ${from} utterance into natural, colloquial ${to}. ` +
     `Preserve tone and intent. Output ONLY the translated text — ` +
-    `no quotes, no notes, no explanations.\n\nUtterance: ${text}`;
+    `no quotes, no notes, no explanations.`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.5-flash',
-    contents: prompt,
+  // claude-haiku-4-5: en hızlı ve en ucuz model; canlı çeviri için ideal.
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5',
+    max_tokens: 1024,
+    system,
+    messages: [{ role: 'user', content: text }],
   });
 
-  const out = (response.text ?? '').trim();
+  let out = '';
+  for (const block of response.content) {
+    if (block.type === 'text') out += block.text;
+  }
+  out = out.trim();
   if (!out) throw new Error('EMPTY');
   return out;
 }

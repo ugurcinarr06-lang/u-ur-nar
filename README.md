@@ -15,7 +15,7 @@ yazar ve sesli okur.
 - **Split-screen konuşma ekranı:** Üst yarı 180° döndürülmüş, alt yarı normal.
 - **Bas-konuş → çeviri → seslendirme zinciri:**
   - **STT:** Web Speech API (tarayıcıda, anahtarsız) — Chrome/Edge önerilir.
-  - **Çeviri:** Gemini (`gemini-2.5-flash`) — **serverless fonksiyon** üzerinden.
+  - **Çeviri:** Claude (`claude-haiku-4-5`) — **serverless fonksiyon** üzerinden.
   - **TTS:** Web Speech API ile otomatik seslendirme.
 - **Konuşma geçmişi:** Baloncuklar (kim/orijinal/çeviri), dokununca tekrar oku.
 - Büyük dokunma hedefleri, büyük font, yüksek kontrast (yaşlı/acele eden
@@ -24,7 +24,7 @@ yazar ve sesli okur.
 ## Mimari (Önemli — API anahtarı güvenliği)
 
 Çeviri, tarayıcıda **değil**, sunucu tarafında yapılır. İstemci
-`POST /api/translate`'e istek atar; `GEMINI_API_KEY` yalnızca sunucu
+`POST /api/translate`'e istek atar; `ANTHROPIC_API_KEY` yalnızca sunucu
 ortamında okunur ve istemci paketine **asla gömülmez**.
 
 - **Vercel'de:** `api/translate.ts` serverless fonksiyon olarak çalışır.
@@ -35,18 +35,18 @@ ortamında okunur ve istemci paketine **asla gömülmez**.
 
 - React 19 + TypeScript + Vite
 - Tailwind CSS (CDN), framer-motion, lucide-react
-- Sunucu: Vercel Serverless Functions (`@vercel/node`) + `@google/genai`
+- Sunucu: Vercel Serverless Functions (`@vercel/node`) + `@anthropic-ai/sdk`
 
 ## Yerelde Çalıştırma
 
 **Gereksinim:** Node.js
 
 1. Bağımlılıkları kur: `npm install`
-2. `.env.example`'ı `.env.local` olarak kopyalayıp Gemini anahtarını yaz:
+2. `.env.example`'ı `.env.local` olarak kopyalayıp Claude anahtarını yaz:
    ```
-   GEMINI_API_KEY=AIza...
+   ANTHROPIC_API_KEY=sk-ant-...
    ```
-   Anahtarı buradan al: https://aistudio.google.com/apikey
+   Anahtarı buradan al: https://console.anthropic.com → API Keys
 3. Sunucuyu başlat: `npm run dev`
 4. **Chrome veya Edge** ile `http://localhost:3000` adresini aç, mikrofon
    iznini ver. (Web Speech API Firefox'ta yoktur.)
@@ -57,7 +57,7 @@ ortamında okunur ve istemci paketine **asla gömülmez**.
 2. https://vercel.com → **Add New → Project** → bu GitHub reposunu içe aktar.
 3. Framework otomatik **Vite** olarak algılanır (`vercel.json` ile sabitlenmiştir).
 4. **Settings → Environment Variables** altına ekle:
-   - `GEMINI_API_KEY` = Gemini API anahtarın
+   - `ANTHROPIC_API_KEY` = Claude (Anthropic) API anahtarın (`sk-ant-...`)
 5. **Deploy**. Bittiğinde `https://<proje>.vercel.app` adresinde yayında olur.
 
 > Not: Anahtarı değiştirdikten sonra yeniden **Redeploy** etmen gerekir.
@@ -81,7 +81,7 @@ services/
   translation.ts             /api/translate'e fetch (istemci)
   tts.ts                     Yerel seslendirme (Web Speech API)
 lib/
-  gemini.ts                  Paylaşılan çeviri çekirdeği (sunucu)
+  claude.ts                  Paylaşılan çeviri çekirdeği (sunucu)
 api/
   translate.ts               Vercel serverless fonksiyon
 ```
