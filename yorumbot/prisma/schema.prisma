@@ -1,0 +1,83 @@
+// YorumBot veri modeli — multi-tenant SaaS
+// Dev'de SQLite, production'da DATABASE_URL'i Postgres yapman yeterli.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SaaS müşterisi (işletme sahibi)
+model Business {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  apiKey        String         @unique @default(cuid()) // API isteklerinde Authorization: Bearer <apiKey>
+  plan          String         @default("trial") // trial | starter | pro
+  createdAt     DateTime       @default(now())
+  googleAccount GoogleAccount?
+  locations     Location[]
+  settings      Settings?
+}
+
+// Google OAuth token'ları (işletme başına bir bağlantı)
+model GoogleAccount {
+  id           String   @id @default(cuid())
+  businessId   String   @unique
+  business     Business @relation(fields: [businessId], references: [id])
+  accountName  String // GBP account resource name: accounts/123...
+  accessToken  String
+  refreshToken String
+  expiryDate   DateTime
+}
+
+// İşletmenin Google Business Profile lokasyonları (şubeler)
+model Location {
+  id           String   @id @default(cuid())
+  businessId   String
+  business     Business @relation(fields: [businessId], references: [id])
+  resourceName String   @unique // locations/456...
+  title        String
+  autoReply    Boolean  @default(true)
+  reviews      Review[]
+}
+
+// Google'dan çekilen yorumlar
+model Review {
+  id           String   @id @default(cuid())
+  locationId   String
+  location     Location @relation(fields: [locationId], references: [id])
+  resourceName String   @unique // accounts/.../locations/.../reviews/...
+  reviewer     String
+  rating       Int // 1-5
+  comment      String?
+  createTime   DateTime
+  status       String   @default("new") // new | replied | held | skipped
+  reply        Reply?
+}
+
+// Üretilen ve gönderilen cevaplar
+model Reply {
+  id        String   @id @default(cuid())
+  reviewId  String   @unique
+  review    Review   @relation(fields: [reviewId], references: [id])
+  text      String
+  source    String   @default("ai") // ai | manual
+  postedAt  DateTime?
+  createdAt DateTime @default(now())
+}
+
+// İşletme başına cevap ayarları
+model Settings {
+  id              String   @id @default(cuid())
+  businessId      String   @unique
+  business        Business @relation(fields: [businessId], references: [id])
+  tone            String   @default("samimi ve profesyonel")
+  language        String   @default("tr")
+  signature       String? // örn: "— Lezzet Durağı Ekibi"
+  minAutoRating   Int      @default(4) // bu puanın altındaki yorumlar onaya düşer
+  blockedKeywords String   @default("zehirlendik,avukat,şikayet edeceğim,dava") // virgülle ayrık
+}
