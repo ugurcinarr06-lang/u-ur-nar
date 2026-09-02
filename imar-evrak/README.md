@@ -49,6 +49,13 @@ tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
   onaylamaz, yalnızca işaretler. Ayrıntı için "Yapay zekâ incelemesi".
 - **Memur kararı:** teslim alınan her belge için *uygun* / *uygun değil*
   (gerekçesiyle) kaydı. Karar işlem geçmişine yazılır.
+- **Hazırlık özeti:** evrakın en üstünde "dosya karara hazır mı" kutusu —
+  teslim alınmayan, uygun bulunmayan, engel çıkan ve karar bekleyen belgeler
+  ayrı ayrı sayılır. Listede de rozet olarak görünür (*Karara hazır*,
+  *3 eksik belge*, *2 engel*…).
+- **Kaynağından doğrulama:** e-Devlet/kurum belgelerinde (tapu, SGK, vergi,
+  EKB, YAMBİS…) barkod-doğrulama kodu alanı; kod kaydedilir, e-Devlet sorgu
+  sayfasına bağlantı verilir, teyit eden personel ve tarih geçmişe yazılır.
 - **Diğer ekler:** kontrol listesine girmeyen belgeler (tutanak, yazışma,
   fotoğraf) evraka doğrudan eklenir (pdf, jpg/png/tiff, doc/docx, xls/xlsx, dwg/dxf, zip; dosya başına
   25 MB, en çok 10 dosya). Ekleme ve silme işlem geçmişine yazılır; eki
@@ -109,14 +116,19 @@ USB ile taşınabilir veya bir iç ağ paylaşımına konabilir.
 Bir belge yüklendiğinde sıraya alınır ve şu üç aşamadan geçer:
 
 1. **Metin çıkarma** — PDF'in metin katmanı okunur (`pdfjs`). Metin katmanı
-   yoksa belge "taranmış" sayılır ve bu bulgu olarak bildirilir; OCR henüz yok.
+   yoksa (taranmış belge) sayfalar görüntüye çevrilip **OCR** ile okunur;
+   fotoğraf/tarama dosyaları da doğrudan OCR'dan geçer.
 2. **Kural kontrolleri** — model gerektirmez, her zaman çalışır:
    - belgedeki ada/parsel evrak kaydıyla uyuşuyor mu (**engel** seviyesinde),
    - başvuran adı belgede geçiyor mu,
    - dosya beklenen belge türüne benziyor mu (yanlış satıra yükleme),
    - belge tarihi güncel mi (tapu 30, SGK/vergi 60, imar durumu 365 gün),
    - elektronik imza alanı var mı, belge tek sayfa mı, dosya çok küçük mü,
-   - aynı dosya bu evraka daha önce yüklenmiş mi (sha256 karşılaştırması).
+   - aynı dosya bu evraka daha önce yüklenmiş mi (sha256 karşılaştırması),
+   - belgede e-Devlet doğrulama kodu / barkod var mı (bulunursa memura yazılır).
+
+   Karşılaştırmalar Türkçe harflere duyarsızdır: OCR "Yılmaz"ı "Yilmaz"
+   okuduğunda veya belge büyük harfle yazıldığında eşleşme kaçmaz.
 3. **Model incelemesi** — açıksa, belge metni ve başvuru kaydı modele verilir;
    model bulgu üretir (belge türü, çelişki, eksik bölüm, imza/kaşe/müellif
    bilgisi). Yönerge modele açıkça *"onay verme, yalnızca bildir"* der.
@@ -124,6 +136,29 @@ Bir belge yüklendiğinde sıraya alınır ve şu üç aşamadan geçer:
 Bulgular üç seviyede toplanır: **bilgi** (nötr tespit), **uyarı** (memur
 bakmalı), **engel** (bu hâliyle kabul edilmemeli). Dosyanın altında rozet
 olarak görünür; memur okur ve **uygun / uygun değil** kararını verir.
+
+### OCR (taranmış belgeler)
+
+Dil verisi bir kez kurulur:
+
+```bash
+npm run ocr-kur          # veri/tessdata/tur.traineddata (~4,5 MB)
+```
+
+İnterneti kapalı kurumlarda dosya başka bir makinede indirilip
+`veri/tessdata/` altına kopyalanabilir; başka bir şey gerekmez. Dosya
+yoksa OCR sessizce devre dışı kalır ve belge "taranmış, kontrol edilemedi"
+olarak işaretlenir.
+
+| Değişken | Varsayılan | Açıklama |
+| --- | --- | --- |
+| `IMAR_OCR` | açık | `kapali` yazılırsa OCR hiç çalışmaz |
+| `IMAR_OCR_DIL` | `tur` | Tesseract dil kodu |
+| `IMAR_OCR_DIL_YOLU` | `veri/tessdata` | Dil verisi klasörü |
+| `IMAR_OCR_SAYFA` | `3` | PDF'te okunacak azami sayfa |
+
+Uzun projelerde tüm sayfaların taranması dakikalar sürer; bu yüzden ilk
+sayfalar okunur ve kaç sayfanın atlandığı metne not düşülür.
 
 ### Model sağlayıcısını seçme
 
@@ -200,7 +235,8 @@ server/
   auth.ts                  scrypt şifre özeti, oturum sabitleri
   ai/
     inceleme.ts            İnceleme kuyruğu ve sonuç kayıtları
-    metin.ts               PDF metin katmanı çıkarma
+    metin.ts               PDF metin katmanı çıkarma, OCR'a düşme
+    ocr.ts                 Tesseract işçisi, PDF sayfası → görüntü → metin
     kurallar.ts            Modelsiz kontroller (ada/parsel, tarih, imza…)
     saglayici.ts           Ollama / Claude / deneme sağlayıcıları
 src/
@@ -210,12 +246,14 @@ src/
   types.ts                 Evrak, İşlem, Filtre tipleri
   data.ts                  Durum/tür sabitleri, örnek veri
   belgeler.ts              Türe göre istenen belge listeleri
+  hazirlik.ts              Dosya karara hazır mı hesabı
   storage.ts               localStorage okuma-yazma, yedek çözümleme
   utils.ts                 Tarih/gün hesapları, evrak no, CSV, indirme
   veri/
     depo.ts                Sunucu/yerel veri katmanı, oturum çağrıları
   components/
     EksikBelgeYazisi.tsx   Yazdırılabilir eksik belge bildirimi
+    HazirlikKutusu.tsx     Dosya hazırlık özeti
     Inceleme.tsx           Otomatik inceleme rozeti ve bulgu listesi
     Giris.tsx              Giriş ekranı
     Kullanicilar.tsx       Hesap ve personel yönetimi
@@ -227,9 +265,18 @@ src/
     Rozet.tsx              Durum ve gecikme rozetleri
 ```
 
+### Kaynağından doğrulama
+
+Metin okuma bir belgenin **gerçekliğini** kanıtlamaz. Bunun için belgedeki
+doğrulama kodu kullanılır: kod alana yazılır, memur e-Devlet sorgu sayfasında
+teyit eder ve "doğrulandı" der; kim ne zaman doğruladı işlem geçmişine
+yazılır. TAKBİS/YAMBİS gibi sistemlere doğrudan bağlanmak belediyenin
+kurumsal entegrasyon iznine bağlıdır.
+
 ## Sonraki adımlar
 
 - Gecikme hatırlatmaları (e-posta/SMS) ve müdüre haftalık özet.
+- TAKBİS/YAMBİS entegrasyonu (kurumsal izin gerektirir).
 - Başvuru sahibi için takip numarasıyla salt-okunur durum sorgulama.
 - Parsel bazlı geçmiş: aynı ada/parseldeki tüm evraklar bir arada.
 - Eksik belge istendiğinde süre sayacının durması.

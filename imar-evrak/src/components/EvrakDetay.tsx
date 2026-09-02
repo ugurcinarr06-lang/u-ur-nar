@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
-import { belgeListesi } from '../belgeler';
+import { DOGRULANABILIR, belgeListesi } from '../belgeler';
 import { DURUMLAR, turAdi } from '../data';
+import { hazirlikDurumu } from '../hazirlik';
 import type { Durum, Ek, Evrak } from '../types';
 import { boyutGoster, gunFarki, tarihGoster, tarihSaatGoster } from '../utils';
+import { HazirlikKutusu } from './HazirlikKutusu';
 import { IncelemeKutusu } from './Inceleme';
 import { DurumRozeti } from './Rozet';
 
@@ -24,6 +26,7 @@ interface Props {
   onBelgeIsaretle: (kod: string, teslim: boolean) => void;
   /** Memurun içerik kararı; sunucu kipinde vardır. */
   onBelgeKarar?: (kod: string, karar: 'uygun' | 'uygunsuz' | '', not: string) => void;
+  onBelgeDogrulama?: (kod: string, dogrulamaKodu: string, dogrulandi: boolean) => void;
   onIncelemeYenile?: (ekId: string) => void;
   /** Eksik belge yazısını açar; eksik yoksa çağrılmaz. */
   onEksikYazi: () => void;
@@ -51,6 +54,7 @@ export function EvrakDetay({
   ekSilinebilir,
   onBelgeIsaretle,
   onBelgeKarar,
+  onBelgeDogrulama,
   onIncelemeYenile,
   onEksikYazi,
 }: Props) {
@@ -147,6 +151,8 @@ export function EvrakDetay({
       )}
 
       <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4">
+        <HazirlikKutusu hazirlik={hazirlikDurumu(evrak)} />
+
         <dl className="grid grid-cols-2 gap-4 text-sm">
           <Satir ad="Evrak türü" deger={turAdi(evrak.tur)} />
           <Satir ad="Geliş tarihi" deger={tarihGoster(evrak.gelisTarihi)} />
@@ -239,6 +245,62 @@ export function EvrakDetay({
                       elle işaretlendi · {kayit.kullanici}
                       {kayit.tarih ? ` · ${tarihGoster(kayit.tarih)}` : ''}
                     </span>
+                  )}
+
+                  {onBelgeDogrulama && teslimMi(b.kod) && DOGRULANABILIR.has(b.kod) && (
+                    <div className="ml-6 mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+                      {kayit?.dogrulandi ? (
+                        <>
+                          <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 font-medium text-sky-800 ring-1 ring-inset ring-sky-300">
+                            Kaynağından doğrulandı
+                          </span>
+                          <span className="text-slate-500">
+                            {kayit.dogrulayan}
+                            {kayit.dogrulamaTarihi ? ` · ${tarihGoster(kayit.dogrulamaTarihi)}` : ''}
+                            {kayit.dogrulamaKodu ? ` · kod ${kayit.dogrulamaKodu}` : ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => onBelgeDogrulama(b.kod, kayit.dogrulamaKodu ?? '', false)}
+                            className="text-slate-500 underline"
+                          >
+                            geri al
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-slate-500">Doğrulama kodu:</span>
+                          <input
+                            defaultValue={kayit?.dogrulamaKodu ?? ''}
+                            placeholder="belgedeki barkod / kod"
+                            onBlur={(e) => {
+                              const deger = e.target.value.trim();
+                              if (deger !== (kayit?.dogrulamaKodu ?? '')) {
+                                onBelgeDogrulama(b.kod, deger, false);
+                              }
+                            }}
+                            className="w-44 rounded border border-slate-300 px-2 py-0.5"
+                          />
+                          <a
+                            href="https://www.turkiye.gov.tr/belge-dogrulama"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-slate-600 underline"
+                          >
+                            e-Devlet'te sorgula
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onBelgeDogrulama(b.kod, kayit?.dogrulamaKodu ?? '', true)
+                            }
+                            className="rounded-lg border border-sky-300 px-2 py-0.5 font-medium text-sky-800 hover:bg-sky-50"
+                          >
+                            doğrulandı
+                          </button>
+                        </>
+                      )}
+                    </div>
                   )}
 
                   {onBelgeKarar && teslimMi(b.kod) && (

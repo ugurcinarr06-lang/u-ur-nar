@@ -62,6 +62,10 @@ interface BelgeSatir {
   karar_notu: string;
   karar_veren: string;
   karar_tarihi: string;
+  dogrulama_kodu: string;
+  dogrulandi: number;
+  dogrulayan: string;
+  dogrulama_tarihi: string;
   kullanici: string;
   tarih: string;
 }
@@ -277,6 +281,10 @@ const belgeDon = (b: BelgeSatir): BelgeDurumu => ({
   kararNotu: b.karar_notu || undefined,
   kararVeren: b.karar_veren || undefined,
   kararTarihi: b.karar_tarihi || undefined,
+  dogrulamaKodu: b.dogrulama_kodu || undefined,
+  dogrulandi: b.dogrulandi === 1 || undefined,
+  dogrulayan: b.dogrulayan || undefined,
+  dogrulamaTarihi: b.dogrulama_tarihi || undefined,
 });
 
 function evrakDon(
@@ -470,6 +478,63 @@ app.put('/api/evraklar/:id/belgeler', korumali, (istek: Istek, yanit) => {
     ).run(id, kod, istek.kullanici!.ad, new Date().toISOString());
   } else {
     db.prepare('DELETE FROM belgeler WHERE evrak_id = ? AND kod = ?').run(id, kod);
+  }
+  yanit.json(tekEvrak(id));
+});
+
+/** Belgenin kaynağından teyidi: doğrulama kodu ve teyit kaydı. */
+app.put('/api/evraklar/:id/belgeler/dogrulama', korumali, (istek: Istek, yanit) => {
+  const id = String(istek.params.id);
+  const { kod, dogrulamaKodu, dogrulandi } = istek.body as {
+    kod?: string;
+    dogrulamaKodu?: string;
+    dogrulandi?: boolean;
+  };
+  const evrak = db.prepare('SELECT durum, tur FROM evraklar WHERE id = ?').get(id) as
+    | { durum: string; tur: string }
+    | undefined;
+  if (!kod || !evrak) {
+    yanit.status(kod ? 404 : 400).json({ hata: kod ? 'Evrak bulunamadı.' : 'Belge kodu zorunlu.' });
+    return;
+  }
+
+  const simdi = new Date().toISOString();
+  const ad = istek.kullanici!.ad;
+  const oncekiDurum = db
+    .prepare('SELECT dogrulandi FROM belgeler WHERE evrak_id = ? AND kod = ?')
+    .get(id, kod) as { dogrulandi: number } | undefined;
+
+  db.prepare(
+    `INSERT INTO belgeler (evrak_id, kod, teslim, dogrulama_kodu, dogrulandi, dogrulayan, dogrulama_tarihi, kullanici, tarih)
+     VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (evrak_id, kod) DO UPDATE SET
+       dogrulama_kodu = excluded.dogrulama_kodu, dogrulandi = excluded.dogrulandi,
+       dogrulayan = excluded.dogrulayan, dogrulama_tarihi = excluded.dogrulama_tarihi`,
+  ).run(
+    id,
+    kod,
+    (dogrulamaKodu ?? '').trim(),
+    dogrulandi ? 1 : 0,
+    dogrulandi ? ad : '',
+    dogrulandi ? simdi : '',
+    ad,
+    simdi,
+  );
+
+  // Teyit yalnızca ilk kez verildiğinde geçmişe yazılır.
+  if (dogrulandi && oncekiDurum?.dogrulandi !== 1) {
+    db.prepare(
+      'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(
+      yeniId(),
+      id,
+      simdi,
+      evrak.durum,
+      `${belgeAdi(evrak.tur as Tur, kod)} kaynağından doğrulandı${
+        dogrulamaKodu ? ` (kod: ${dogrulamaKodu.trim()})` : ''
+      }`,
+      ad,
+    );
   }
   yanit.json(tekEvrak(id));
 });

@@ -95,6 +95,12 @@ export interface BelgeDurumu {
   kararNotu?: string;
   kararVeren?: string;
   kararTarihi?: string;
+  /** e-Devlet / kurum belgesindeki barkod veya doğrulama kodu. */
+  dogrulamaKodu?: string;
+  /** Kod kaynağından teyit edildiyse true. */
+  dogrulandi?: boolean;
+  dogrulayan?: string;
+  dogrulamaTarihi?: string;
 }
 
 export interface Evrak {

@@ -1,4 +1,5 @@
 import { KAPALI_DURUMLAR, turAdi } from '../data';
+import { hazirlikDurumu, hazirlikOzeti } from '../hazirlik';
 import type { Evrak } from '../types';
 import { kalanGun, tarihGoster } from '../utils';
 import { DurumRozeti, GecikmeRozeti } from './Rozet';
@@ -33,7 +34,9 @@ export function EvrakListesi({ evraklar, seciliId, onSec }: Props) {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {evraklar.map((e) => (
+          {evraklar.map((e) => {
+            const ozet = hazirlikOzeti(hazirlikDurumu(e));
+            return (
             <tr
               key={e.id}
               onClick={() => onSec(e.id)}
@@ -49,6 +52,13 @@ export function EvrakListesi({ evraklar, seciliId, onSec }: Props) {
                   {e.ekler.length > 0 && (
                     <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">
                       {e.ekler.length} ek
+                    </span>
+                  )}
+                  {ozet && (
+                    <span
+                      className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${ozet.renk}`}
+                    >
+                      {ozet.ad}
                     </span>
                   )}
                 </div>
@@ -74,7 +84,8 @@ export function EvrakListesi({ evraklar, seciliId, onSec }: Props) {
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-slate-700">{e.sorumlu || '—'}</td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

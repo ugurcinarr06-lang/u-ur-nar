@@ -83,6 +83,21 @@ export const BELGELER: Record<Tur, BelgeTanimi[]> = {
   ],
 };
 
+/**
+ * Kaynağından (e-Devlet, YAMBİS, ilgili kurum) teyit edilebilen belgeler.
+ * Yalnızca bunlarda doğrulama kodu alanı gösterilir.
+ */
+export const DOGRULANABILIR = new Set([
+  'tapu',
+  'sgk',
+  'vergi',
+  'ekb',
+  'basvuru',
+  'muteahhit',
+  'yapi-denetim',
+  'kimlik',
+]);
+
 export const belgeListesi = (tur: Tur): BelgeTanimi[] => BELGELER[tur] ?? BELGELER.diger;
 
 export const belgeAdi = (tur: Tur, kod: string): string =>

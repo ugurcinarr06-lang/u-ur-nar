@@ -1,11 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
+import { goruntuMetni, ocrHazirMi, pdfOcrMetni } from './ocr.js';
 
 export interface MetinSonucu {
   metin: string;
   sayfa: number;
   /** PDF'te metin katmanı yoksa belge taranmıştır; OCR gerekir. */
   taranmis: boolean;
+  /** Metin OCR ile okunduysa true; tanıma hataları olabilir. */
+  ocr?: boolean;
   /** PDF içinde imza sözlüğü görülüp görülmediği. */
   eImzali: boolean;
   hata?: string;
@@ -55,16 +58,33 @@ async function pdfMetni(yol: string): Promise<MetinSonucu> {
   };
 }
 
+const GORUNTULER = new Set(['.jpg', '.jpeg', '.png', '.webp', '.tif', '.tiff', '.gif']);
+
 /** Desteklenen dosyalardan düz metin çıkarır; çıkaramazsa boş döner. */
 export async function metinCikar(yol: string): Promise<MetinSonucu> {
   const uzanti = extname(yol).toLowerCase();
   try {
-    if (uzanti === '.pdf') return await pdfMetni(yol);
     if (uzanti === '.txt') {
       const metin = (await readFile(yol, 'utf8')).trim();
       return { ...BOS, metin, sayfa: 1 };
     }
-    // Görseller ve ofis dosyaları: metin katmanı yok, taranmış sayılır.
+
+    if (uzanti === '.pdf') {
+      const sonuc = await pdfMetni(yol);
+      // Metin katmanı yoksa sayfaları görüntüye çevirip OCR ile okuruz.
+      if (sonuc.taranmis && ocrHazirMi()) {
+        const metin = await pdfOcrMetni(yol);
+        return { ...sonuc, metin, taranmis: metin.length < 30, ocr: true };
+      }
+      return sonuc;
+    }
+
+    if (GORUNTULER.has(uzanti) && ocrHazirMi()) {
+      const metin = await goruntuMetni(yol);
+      return { ...BOS, metin, sayfa: 1, taranmis: metin.length < 30, ocr: true };
+    }
+
+    // Ofis dosyaları ve dil verisi yokken görüntüler: metin okunamaz.
     return { ...BOS, taranmis: true };
   } catch (hata) {
     return { ...BOS, hata: hata instanceof Error ? hata.message : 'Metin çıkarılamadı.' };

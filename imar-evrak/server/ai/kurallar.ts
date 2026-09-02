@@ -72,6 +72,22 @@ const IMZA_BEKLENEN = new Set([
 ]);
 
 /**
+ * Karşılaştırmalar için metni sadeleştirir: küçük harf + Türkçe harfleri
+ * ASCII karşılığına indirger. OCR "Yılmaz"ı "Yilmaz" okuduğunda ya da belge
+ * büyük harfle yazıldığında eşleşme kaçmasın diye.
+ */
+const sadelestir = (metin: string): string =>
+  metin
+    .toLocaleLowerCase('tr')
+    .replace(/[ıİ]/g, 'i')
+    .replace(/[şŞ]/g, 's')
+    .replace(/[ğĞ]/g, 'g')
+    .replace(/[üÜ]/g, 'u')
+    .replace(/[öÖ]/g, 'o')
+    .replace(/[çÇ]/g, 'c')
+    .replace(/[âÂ]/g, 'a');
+
+/**
  * Metindeki ada/parsel numaralarını toplar. Türkçede iki yazım da yaygın:
  * "Ada No: 412" ve "412 ada 7 parsel" — ikisi de yakalanır.
  */
@@ -124,13 +140,23 @@ export function kurallariUygula(g: IncelemeGirdisi): Bulgu[] {
     ekle(
       'bilgi',
       'Taranmış belge — metin kontrolü yapılamadı',
-      'İçerik karşılaştırmaları için OCR gerekiyor; gözle kontrol edilmeli.',
+      g.metin.ocr
+        ? 'OCR çalıştı ama okunabilir metin çıkmadı; gözle kontrol edilmeli.'
+        : 'Metin katmanı yok ve OCR kapalı; gözle kontrol edilmeli.',
     );
     return bulgular;
   }
 
+  if (g.metin.ocr) {
+    ekle(
+      'bilgi',
+      'Belge OCR ile okundu',
+      'Tarama üzerinden metin çıkarıldı; harf tanıma hataları olabilir.',
+    );
+  }
+
   const metin = g.metin.metin;
-  const kucuk = metin.toLocaleLowerCase('tr');
+  const kucuk = sadelestir(metin);
 
   // 1) Taşınmaz eşleşmesi
   if (g.evrak.ada && g.evrak.parsel) {
@@ -156,7 +182,9 @@ export function kurallariUygula(g: IncelemeGirdisi): Bulgu[] {
 
   // 2) Başvuran adı
   if (g.evrak.basvuran) {
-    const parcalar = g.evrak.basvuran.toLocaleLowerCase('tr').split(/\s+/).filter((p) => p.length > 2);
+    const parcalar = sadelestir(g.evrak.basvuran)
+      .split(/\s+/)
+      .filter((p) => p.length > 2);
     if (parcalar.length && !parcalar.every((p) => kucuk.includes(p))) {
       ekle(
         'uyari',
@@ -168,7 +196,7 @@ export function kurallariUygula(g: IncelemeGirdisi): Bulgu[] {
 
   // 3) Belge türü
   const anahtar = ANAHTARLAR[g.belgeKodu];
-  if (anahtar && !anahtar.some((k) => kucuk.includes(k))) {
+  if (anahtar && !anahtar.some((k) => kucuk.includes(sadelestir(k)))) {
     ekle(
       'uyari',
       `Dosya "${g.belgeAdi}" gibi görünmüyor`,
@@ -195,7 +223,20 @@ export function kurallariUygula(g: IncelemeGirdisi): Bulgu[] {
     ekle('uyari', 'Belgede tarih bulunamadı', 'Güncellik kontrolü yapılamadı.');
   }
 
-  // 5) İmza
+  // 5) e-Devlet doğrulama kodu
+  const kodEslesme =
+    /(?:barkod|doğrulama\s*kodu|dogrulama\s*kodu|belge\s*no)\s*[:.]?\s*([A-Z0-9-]{6,24})/i.exec(
+      metin,
+    );
+  if (kodEslesme) {
+    ekle(
+      'bilgi',
+      'Belgede doğrulama kodu var',
+      `Kod: ${kodEslesme[1]} — kaynağından teyit edilebilir (doğrulama alanına yazın).`,
+    );
+  }
+
+  // 6) İmza
   if (IMZA_BEKLENEN.has(g.belgeKodu)) {
     if (g.metin.eImzali) {
       ekle('bilgi', 'Belgede elektronik imza alanı var');
@@ -208,7 +249,7 @@ export function kurallariUygula(g: IncelemeGirdisi): Bulgu[] {
     }
   }
 
-  // 6) Sayfa sayısı
+  // 7) Sayfa sayısı
   if (['mimari', 'statik', 'zemin'].includes(g.belgeKodu) && g.metin.sayfa === 1) {
     ekle('uyari', 'Belge tek sayfa', 'Proje/rapor için beklenenden kısa.');
   }

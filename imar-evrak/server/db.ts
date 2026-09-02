@@ -84,6 +84,10 @@ db.exec(`
     karar_notu TEXT NOT NULL DEFAULT '',
     karar_veren TEXT NOT NULL DEFAULT '',
     karar_tarihi TEXT NOT NULL DEFAULT '',
+    dogrulama_kodu TEXT NOT NULL DEFAULT '',
+    dogrulandi INTEGER NOT NULL DEFAULT 0,
+    dogrulayan TEXT NOT NULL DEFAULT '',
+    dogrulama_tarihi TEXT NOT NULL DEFAULT '',
     kullanici TEXT NOT NULL,
     tarih     TEXT NOT NULL,
     PRIMARY KEY (evrak_id, kod)
@@ -120,6 +124,10 @@ function gocleriUygula(): void {
     ['karar_notu', "karar_notu TEXT NOT NULL DEFAULT ''"],
     ['karar_veren', "karar_veren TEXT NOT NULL DEFAULT ''"],
     ['karar_tarihi', "karar_tarihi TEXT NOT NULL DEFAULT ''"],
+    ['dogrulama_kodu', "dogrulama_kodu TEXT NOT NULL DEFAULT ''"],
+    ['dogrulandi', 'dogrulandi INTEGER NOT NULL DEFAULT 0'],
+    ['dogrulayan', "dogrulayan TEXT NOT NULL DEFAULT ''"],
+    ['dogrulama_tarihi', "dogrulama_tarihi TEXT NOT NULL DEFAULT ''"],
   ]) {
     if (!belgeSutunlari.some((s) => s.name === ad)) {
       db.exec(`ALTER TABLE belgeler ADD COLUMN ${tanim}`);

@@ -189,6 +189,18 @@ export default function App() {
       setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
     });
 
+  const belgeDogrulama = (
+    evrakId: string,
+    kod: string,
+    dogrulamaKodu: string,
+    dogrulandi: boolean,
+  ) =>
+    void calistir(async () => {
+      if (!depo?.belgeDogrulama) return;
+      const guncel = await depo.belgeDogrulama(evrakId, kod, dogrulamaKodu, dogrulandi);
+      setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
+    });
+
   const incelemeYenile = (ekId: string) =>
     void calistir(async () => {
       if (!depo?.incelemeYenile) return;
@@ -403,6 +415,12 @@ export default function App() {
               onBelgeKarar={
                 depo?.belgeKarar
                   ? (kod, karar, not) => belgeKarar(secili.id, kod, karar, not)
+                  : undefined
+              }
+              onBelgeDogrulama={
+                depo?.belgeDogrulama
+                  ? (kod, dogrulamaKodu, dogrulandi) =>
+                      belgeDogrulama(secili.id, kod, dogrulamaKodu, dogrulandi)
                   : undefined
               }
               onIncelemeYenile={depo?.incelemeYenile ? incelemeYenile : undefined}
