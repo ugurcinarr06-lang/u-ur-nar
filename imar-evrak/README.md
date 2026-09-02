@@ -43,6 +43,12 @@ tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
   verilecek resmi yazı üretilir (kurum başlığı, sayı/konu, ada-parsel,
   numaralı eksik listesi, 30 gün süre kaydı) ve yazdırılır. Koşullu
   belgeler yazıya girmez. Kurum adı bir kez yazılır, tarayıcıda saklanır.
+- **Otomatik ön inceleme (yapay zekâ ajanı):** her yüklenen belge arka planda
+  okunur; ada/parsel, başvuran, tarih, imza, belge türü kontrol edilir ve
+  memura bulgu listesi çıkarılır. **Karar memurundur** — sistem hiçbir belgeyi
+  onaylamaz, yalnızca işaretler. Ayrıntı için "Yapay zekâ incelemesi".
+- **Memur kararı:** teslim alınan her belge için *uygun* / *uygun değil*
+  (gerekçesiyle) kaydı. Karar işlem geçmişine yazılır.
 - **Diğer ekler:** kontrol listesine girmeyen belgeler (tutanak, yazışma,
   fotoğraf) evraka doğrudan eklenir (pdf, jpg/png/tiff, doc/docx, xls/xlsx, dwg/dxf, zip; dosya başına
   25 MB, en çok 10 dosya). Ekleme ve silme işlem geçmişine yazılır; eki
@@ -98,6 +104,61 @@ Derleme: `npm run build` (önce `tsc --noEmit` ile tip kontrolü yapar),
 `dist-tek/index.html`. Bu dosya sunucu istemez — çift tıklayarak açılabilir,
 USB ile taşınabilir veya bir iç ağ paylaşımına konabilir.
 
+## Yapay zekâ incelemesi
+
+Bir belge yüklendiğinde sıraya alınır ve şu üç aşamadan geçer:
+
+1. **Metin çıkarma** — PDF'in metin katmanı okunur (`pdfjs`). Metin katmanı
+   yoksa belge "taranmış" sayılır ve bu bulgu olarak bildirilir; OCR henüz yok.
+2. **Kural kontrolleri** — model gerektirmez, her zaman çalışır:
+   - belgedeki ada/parsel evrak kaydıyla uyuşuyor mu (**engel** seviyesinde),
+   - başvuran adı belgede geçiyor mu,
+   - dosya beklenen belge türüne benziyor mu (yanlış satıra yükleme),
+   - belge tarihi güncel mi (tapu 30, SGK/vergi 60, imar durumu 365 gün),
+   - elektronik imza alanı var mı, belge tek sayfa mı, dosya çok küçük mü,
+   - aynı dosya bu evraka daha önce yüklenmiş mi (sha256 karşılaştırması).
+3. **Model incelemesi** — açıksa, belge metni ve başvuru kaydı modele verilir;
+   model bulgu üretir (belge türü, çelişki, eksik bölüm, imza/kaşe/müellif
+   bilgisi). Yönerge modele açıkça *"onay verme, yalnızca bildir"* der.
+
+Bulgular üç seviyede toplanır: **bilgi** (nötr tespit), **uyarı** (memur
+bakmalı), **engel** (bu hâliyle kabul edilmemeli). Dosyanın altında rozet
+olarak görünür; memur okur ve **uygun / uygun değil** kararını verir.
+
+### Model sağlayıcısını seçme
+
+| `IMAR_AI` | Ne yapar | Veri nereye gider |
+| --- | --- | --- |
+| `kapali` (varsayılan) | yalnızca kural kontrolleri | hiçbir yere |
+| `ollama` | belediye sunucusundaki yerel model | kurum içinde kalır |
+| `claude` | Anthropic API | **kurum dışına çıkar** |
+| `deneme` | modelsiz sahte sağlayıcı (geliştirme/test) | hiçbir yere |
+
+```bash
+# Kendi sunucunuzdaki model (önerilen)
+IMAR_AI=ollama IMAR_AI_MODEL=llama3.1 IMAR_AI_URL=http://127.0.0.1:11434 npm run basla
+```
+
+| Değişken | Varsayılan | Açıklama |
+| --- | --- | --- |
+| `IMAR_AI` | `kapali` | Sağlayıcı seçimi |
+| `IMAR_AI_URL` | `http://127.0.0.1:11434` | Ollama adresi |
+| `IMAR_AI_MODEL` | ollama: `llama3.1`, claude: `claude-opus-5` | Model adı |
+| `IMAR_AI_ZAMAN_ASIMI` | `120000` | Model için azami süre (ms) |
+
+`claude` sağlayıcısı `ANTHROPIC_API_KEY` bekler ve **vatandaş belgelerini dış
+bir servise gönderir**; KVKK açısından bilinçli bir karar olmadan açmayın.
+
+İncelemeler tek sıradan yürür (aynı anda tek belge), yükleme isteği beklemez;
+arayüz sonucu kendiliğinden tazeler. Bir belgeyi yeniden incelemek için dosya
+satırındaki **yeniden incele** kullanılır (model sonradan açıldığında da işe
+yarar).
+
+**Sınırları açıkça söylemek gerekirse:** bu inceleme belgenin *gerçekliğini*
+doğrulamaz. Tapu kaydının doğruluğu TAKBİS'ten, müteahhit yetkisi YAMBİS'ten,
+e-Devlet çıktıları doğrulama kodundan teyit edilir. Buradaki kontrol, memurun
+gözden kaçırabileceği tutarsızlıkları önüne getiren bir **ön elemedir**.
+
 ## Yetkiler
 
 | | Memur | Müdür |
@@ -105,6 +166,7 @@ USB ile taşınabilir veya bir iç ağ paylaşımına konabilir.
 | Evrak açma, düzenleme, işlem/not ekleme | ✓ | ✓ |
 | Dosya ekleme | ✓ | ✓ |
 | Belge işaretleme, eksik belge yazısı | ✓ | ✓ |
+| Belge kararı (uygun / uygun değil) | ✓ | ✓ |
 | Ek silme | yalnızca kendi yüklediğini | tümünü |
 | Evrak silme | — | ✓ |
 | Personel ekleme/silme | — | ✓ |
@@ -115,7 +177,7 @@ Her işlem, yapan kişinin adıyla evrakın geçmişine yazılır.
 ## Veri nerede duruyor
 
 **Sunucu kipinde:** `veri/imar-evrak.db` (SQLite) ve ekler için
-`veri/ekler/`. Yedekleme **`veri/` klasörünün tamamını** kopyalamaktır;
+`veri/ekler/`. İnceleme sonuçları da veritabanındadır. Yedekleme **`veri/` klasörünün tamamını** kopyalamaktır;
 sunucu kapalıyken kopyalamak en temizi. Dosyalar diske üretilmiş adlarla
 (`<uuid>.pdf`) yazılır, özgün adları veritabanında durur. Oturumlar 12 saat
 sonra düşer, şifreler scrypt ile özetlenir.
@@ -134,8 +196,13 @@ yalnızca yerel kipte açıktır).
 index.html                 Uygulama girişi
 server/
   index.ts                 Express API + derlenmiş arayüzü sunar
-  db.ts                    SQLite şeması, ilk kurulum
+  db.ts                    SQLite şeması, göçler, ilk kurulum
   auth.ts                  scrypt şifre özeti, oturum sabitleri
+  ai/
+    inceleme.ts            İnceleme kuyruğu ve sonuç kayıtları
+    metin.ts               PDF metin katmanı çıkarma
+    kurallar.ts            Modelsiz kontroller (ada/parsel, tarih, imza…)
+    saglayici.ts           Ollama / Claude / deneme sağlayıcıları
 src/
   main.tsx                 React kökü
   index.css                Tailwind girişi + yazdırma stilleri
@@ -149,6 +216,7 @@ src/
     depo.ts                Sunucu/yerel veri katmanı, oturum çağrıları
   components/
     EksikBelgeYazisi.tsx   Yazdırılabilir eksik belge bildirimi
+    Inceleme.tsx           Otomatik inceleme rozeti ve bulgu listesi
     Giris.tsx              Giriş ekranı
     Kullanicilar.tsx       Hesap ve personel yönetimi
     Ozet.tsx               Özet kartları

@@ -12,10 +12,12 @@
     "basla": "npm run build && tsx server/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
     "better-sqlite3": "^13.0.3",
     "cookie": "^2.0.1",
     "express": "^5.2.1",
     "multer": "^2.3.0",
+    "pdfjs-dist": "^6.3.289",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

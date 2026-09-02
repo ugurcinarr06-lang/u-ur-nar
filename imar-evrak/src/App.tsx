@@ -73,6 +73,22 @@ export default function App() {
   const secili = evraklar.find((e) => e.id === seciliId) ?? null;
   const yazi = evraklar.find((e) => e.id === yaziId) ?? null;
 
+  /** İnceleme arka planda sürdüğü için biten sonuçları yoklayarak alırız. */
+  const bekleyenInceleme = evraklar.some((e) =>
+    e.ekler.some((x) => x.inceleme?.durum === 'bekliyor' || x.inceleme?.durum === 'inceleniyor'),
+  );
+
+  useEffect(() => {
+    if (!depo || !bekleyenInceleme) return;
+    const zamanlayici = setInterval(() => {
+      depo
+        .liste()
+        .then(setEvraklar)
+        .catch(() => undefined);
+    }, 3000);
+    return () => clearInterval(zamanlayici);
+  }, [depo, bekleyenInceleme]);
+
   const sorumlular = useMemo(
     () => [...new Set(evraklar.map((e) => e.sorumlu).filter(Boolean))].sort(),
     [evraklar],
@@ -158,6 +174,25 @@ export default function App() {
     void calistir(async () => {
       if (!depo?.ekYukle) return;
       const guncel = await depo.ekYukle(evrakId, dosyalar, belgeKodu);
+      setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
+    });
+
+  const belgeKarar = (
+    evrakId: string,
+    kod: string,
+    karar: 'uygun' | 'uygunsuz' | '',
+    not: string,
+  ) =>
+    void calistir(async () => {
+      if (!depo?.belgeKarar) return;
+      const guncel = await depo.belgeKarar(evrakId, kod, karar, not);
+      setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
+    });
+
+  const incelemeYenile = (ekId: string) =>
+    void calistir(async () => {
+      if (!depo?.incelemeYenile) return;
+      const guncel = await depo.incelemeYenile(ekId);
       setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
     });
 
@@ -365,6 +400,12 @@ export default function App() {
               ekAdresi={depo?.ekAdresi}
               ekSilinebilir={(ek) => oturum?.rol === 'mudur' || ek.yukleyen === oturum?.ad}
               onBelgeIsaretle={(kod, teslim) => belgeIsaretle(secili.id, kod, teslim)}
+              onBelgeKarar={
+                depo?.belgeKarar
+                  ? (kod, karar, not) => belgeKarar(secili.id, kod, karar, not)
+                  : undefined
+              }
+              onIncelemeYenile={depo?.incelemeYenile ? incelemeYenile : undefined}
               onEksikYazi={() => setYaziId(secili.id)}
             />
           </div>

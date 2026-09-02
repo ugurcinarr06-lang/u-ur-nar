@@ -69,6 +69,7 @@ db.exec(`
     ad        TEXT NOT NULL,
     dosya     TEXT NOT NULL,
     belge_kodu TEXT NOT NULL DEFAULT '',
+    hash      TEXT NOT NULL DEFAULT '',
     tur       TEXT NOT NULL DEFAULT '',
     boyut     INTEGER NOT NULL,
     yukleyen  TEXT NOT NULL,
@@ -79,9 +80,23 @@ db.exec(`
     evrak_id  TEXT NOT NULL REFERENCES evraklar(id) ON DELETE CASCADE,
     kod       TEXT NOT NULL,
     teslim    INTEGER NOT NULL DEFAULT 0,
+    karar     TEXT NOT NULL DEFAULT '',
+    karar_notu TEXT NOT NULL DEFAULT '',
+    karar_veren TEXT NOT NULL DEFAULT '',
+    karar_tarihi TEXT NOT NULL DEFAULT '',
     kullanici TEXT NOT NULL,
     tarih     TEXT NOT NULL,
     PRIMARY KEY (evrak_id, kod)
+  );
+
+  CREATE TABLE IF NOT EXISTS incelemeler (
+    ek_id    TEXT PRIMARY KEY REFERENCES ekler(id) ON DELETE CASCADE,
+    durum    TEXT NOT NULL,
+    sonuc    TEXT,
+    ozet     TEXT NOT NULL DEFAULT '',
+    bulgular TEXT NOT NULL DEFAULT '[]',
+    model    TEXT NOT NULL DEFAULT '',
+    tarih    TEXT NOT NULL
   );
 
   CREATE INDEX IF NOT EXISTS ekler_evrak ON ekler(evrak_id, tarih);
@@ -94,6 +109,21 @@ function gocleriUygula(): void {
   const sutunlar = db.prepare('PRAGMA table_info(ekler)').all() as { name: string }[];
   if (!sutunlar.some((s) => s.name === 'belge_kodu')) {
     db.exec("ALTER TABLE ekler ADD COLUMN belge_kodu TEXT NOT NULL DEFAULT ''");
+  }
+  if (!sutunlar.some((s) => s.name === 'hash')) {
+    db.exec("ALTER TABLE ekler ADD COLUMN hash TEXT NOT NULL DEFAULT ''");
+  }
+
+  const belgeSutunlari = db.prepare('PRAGMA table_info(belgeler)').all() as { name: string }[];
+  for (const [ad, tanim] of [
+    ['karar', "karar TEXT NOT NULL DEFAULT ''"],
+    ['karar_notu', "karar_notu TEXT NOT NULL DEFAULT ''"],
+    ['karar_veren', "karar_veren TEXT NOT NULL DEFAULT ''"],
+    ['karar_tarihi', "karar_tarihi TEXT NOT NULL DEFAULT ''"],
+  ]) {
+    if (!belgeSutunlari.some((s) => s.name === ad)) {
+      db.exec(`ALTER TABLE belgeler ADD COLUMN ${tanim}`);
+    }
   }
 }
 

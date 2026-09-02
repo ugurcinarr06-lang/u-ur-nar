@@ -44,6 +44,8 @@ export interface Basvuran {
 /** Evraka bağlı dosya (dilekçe taraması, proje pdf'i, tutanak fotoğrafı…). */
 export interface Ek {
   id: string;
+  /** Otomatik inceleme sonucu; sunucu kipinde doldurulur. */
+  inceleme?: Inceleme;
   /** Bağlı olduğu kontrol listesi maddesi; boşsa dosya genel ektir. */
   belgeKodu: string;
   /** Kullanıcının yüklediği özgün dosya adı. */
@@ -55,6 +57,31 @@ export interface Ek {
   tarih: string;
 }
 
+/** Bir incelemede çıkan tek bulgu. */
+export type BulguSeviye = 'bilgi' | 'uyari' | 'engel';
+
+export interface Bulgu {
+  seviye: BulguSeviye;
+  baslik: string;
+  ayrinti?: string;
+  /** Bulgunun kural motorundan mı yapay zekâdan mı geldiği. */
+  kaynak: 'kural' | 'yapay-zeka';
+}
+
+export type IncelemeDurumu = 'bekliyor' | 'inceleniyor' | 'tamam' | 'hata';
+
+/** Yüklenen dosyanın otomatik incelenme sonucu. Karar memurundur. */
+export interface Inceleme {
+  durum: IncelemeDurumu;
+  /** uygun: sorun görülmedi · kontrol: bakılmalı · uygunsuz: engel var */
+  sonuc?: 'uygun' | 'kontrol' | 'uygunsuz';
+  ozet?: string;
+  bulgular: Bulgu[];
+  /** İncelemeyi yapan model (ör. "kural" veya "ollama/llama3.1"). */
+  model?: string;
+  tarih?: string;
+}
+
 /** Kontrol listesindeki bir belgenin teslim durumu. */
 export interface BelgeDurumu {
   /** belgeler.ts içindeki tanım kodu. */
@@ -63,6 +90,11 @@ export interface BelgeDurumu {
   /** Son işaretleyen personel ve zamanı. */
   kullanici?: string;
   tarih?: string;
+  /** Memurun içerik kararı: teslim alınmak belgeyi uygun yapmaz. */
+  karar?: 'uygun' | 'uygunsuz';
+  kararNotu?: string;
+  kararVeren?: string;
+  kararTarihi?: string;
 }
 
 export interface Evrak {

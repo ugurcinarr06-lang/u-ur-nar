@@ -3,9 +3,13 @@ import multer from 'multer';
 import { existsSync, rmSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { COOKIE_ADI, OTURUM_SURESI_MS, sifreDogru, sifreOzeti, yeniId, yeniToken } from './auth.js';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { EKLER_KLASORU, db, ilkKurulum, oturumTemizle } from './db.js';
+import { incelemeHaritasi, incelemeOku, incelemeyeAl } from './ai/inceleme.js';
+import { saglayiciAdi } from './ai/saglayici.js';
 import { belgeAdi } from '../src/belgeler.js';
-import type { BelgeDurumu, Durum, Ek, Evrak, Tur } from '../src/types.js';
+import type { BelgeDurumu, Durum, Ek, Evrak, Inceleme, Tur } from '../src/types.js';
 
 type Rol = 'mudur' | 'memur';
 interface Kullanici {
@@ -54,6 +58,10 @@ interface BelgeSatir {
   evrak_id: string;
   kod: string;
   teslim: number;
+  karar: string;
+  karar_notu: string;
+  karar_veren: string;
+  karar_tarihi: string;
   kullanici: string;
   tarih: string;
 }
@@ -167,7 +175,7 @@ app.get('/api/ben', (istek, yanit) => {
     yanit.status(401).json({ hata: 'Oturum yok.' });
     return;
   }
-  yanit.json(k);
+  yanit.json({ ...k, yapayZeka: saglayiciAdi() });
 });
 
 app.post('/api/sifre', korumali, (istek: Istek, yanit) => {
@@ -249,8 +257,9 @@ app.delete('/api/kullanicilar/:id', korumali, sadeceMudur, (istek: Istek, yanit)
 /* Evraklar                                                            */
 /* ------------------------------------------------------------------ */
 
-const ekDon = (e: EkSatir): Ek => ({
+const ekDon = (e: EkSatir, inceleme?: Inceleme): Ek => ({
   id: e.id,
+  inceleme,
   belgeKodu: e.belge_kodu ?? '',
   ad: e.ad,
   boyut: e.boyut,
@@ -264,6 +273,10 @@ const belgeDon = (b: BelgeSatir): BelgeDurumu => ({
   teslim: b.teslim === 1,
   kullanici: b.kullanici,
   tarih: b.tarih,
+  karar: (b.karar || undefined) as BelgeDurumu['karar'],
+  kararNotu: b.karar_notu || undefined,
+  kararVeren: b.karar_veren || undefined,
+  kararTarihi: b.karar_tarihi || undefined,
 });
 
 function evrakDon(
@@ -271,6 +284,7 @@ function evrakDon(
   islemler: IslemSatir[],
   ekler: EkSatir[],
   belgeler: BelgeSatir[],
+  incelemeler?: Map<string, Inceleme>,
 ): Evrak {
   return {
     id: satir.id,
@@ -296,7 +310,7 @@ function evrakDon(
       not: i.aciklama,
       kullanici: i.kullanici,
     })),
-    ekler: ekler.map(ekDon),
+    ekler: ekler.map((e) => ekDon(e, incelemeler ? incelemeler.get(e.id) : incelemeOku(e.id))),
     belgeler: belgeler.map(belgeDon),
   };
 }
@@ -335,9 +349,16 @@ app.get('/api/evraklar', korumali, (_istek, yanit) => {
   const islemler = grupla(db.prepare('SELECT * FROM islemler ORDER BY tarih').all() as IslemSatir[]);
   const ekler = grupla(db.prepare('SELECT * FROM ekler ORDER BY tarih').all() as EkSatir[]);
   const belgeler = grupla(db.prepare('SELECT * FROM belgeler').all() as BelgeSatir[]);
+  const incelemeler = incelemeHaritasi();
   yanit.json(
     evraklar.map((e) =>
-      evrakDon(e, islemler.get(e.id) ?? [], ekler.get(e.id) ?? [], belgeler.get(e.id) ?? []),
+      evrakDon(
+        e,
+        islemler.get(e.id) ?? [],
+        ekler.get(e.id) ?? [],
+        belgeler.get(e.id) ?? [],
+        incelemeler,
+      ),
     ),
   );
 });
@@ -528,8 +549,8 @@ app.post(
     const belgeKodu = String((istek.body as { belgeKodu?: string }).belgeKodu ?? '').trim();
 
     const ekle = db.prepare(
-      `INSERT INTO ekler (id, evrak_id, ad, dosya, belge_kodu, tur, boyut, yukleyen, tarih)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ekler (id, evrak_id, ad, dosya, belge_kodu, hash, tur, boyut, yukleyen, tarih)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const belgeIsaretle = db.prepare(
       `INSERT INTO belgeler (evrak_id, kod, teslim, kullanici, tarih)
@@ -542,16 +563,22 @@ app.post(
     );
 
     const adlar: string[] = [];
+    const yeniEkler: string[] = [];
     db.transaction(() => {
       for (const d of dosyalar) {
         const ad = adiDuzelt(d.originalname);
         adlar.push(ad);
+        const ekId = yeniId();
+        yeniEkler.push(ekId);
+        // Aynı dosyanın tekrar yüklenmesini yakalamak için içerik özeti.
+        const hash = createHash('sha256').update(readFileSync(d.path)).digest('hex');
         ekle.run(
-          yeniId(),
+          ekId,
           id,
           ad,
           d.filename,
           belgeKodu,
+          hash,
           d.mimetype,
           d.size,
           istek.kullanici!.ad,
@@ -572,9 +599,69 @@ app.post(
       );
     })();
 
+    // İnceleme arka planda yürür; yükleme isteği beklemez.
+    for (const ekId of yeniEkler) incelemeyeAl(ekId);
+
     yanit.status(201).json(tekEvrak(id));
   },
 );
+
+/** İncelemeyi yeniden çalıştırır (model sonradan açıldıysa veya hata olduysa). */
+app.post('/api/ekler/:id/incele', korumali, (istek, yanit) => {
+  const ekId = String(istek.params.id);
+  const ek = db.prepare('SELECT evrak_id FROM ekler WHERE id = ?').get(ekId) as
+    | { evrak_id: string }
+    | undefined;
+  if (!ek) {
+    yanit.status(404).json({ hata: 'Ek bulunamadı.' });
+    return;
+  }
+  incelemeyeAl(ekId);
+  yanit.json(tekEvrak(ek.evrak_id));
+});
+
+/** Memurun belge kararı: incelemeyi okuyup uygun/uygunsuz der. */
+app.put('/api/evraklar/:id/belgeler/karar', korumali, (istek: Istek, yanit) => {
+  const id = String(istek.params.id);
+  const { kod, karar, not } = istek.body as {
+    kod?: string;
+    karar?: 'uygun' | 'uygunsuz' | '';
+    not?: string;
+  };
+  const evrak = db.prepare('SELECT durum, tur FROM evraklar WHERE id = ?').get(id) as
+    | { durum: string; tur: string }
+    | undefined;
+  if (!kod || !evrak) {
+    yanit.status(kod ? 404 : 400).json({ hata: kod ? 'Evrak bulunamadı.' : 'Belge kodu zorunlu.' });
+    return;
+  }
+
+  const simdi = new Date().toISOString();
+  const ad = istek.kullanici!.ad;
+  db.prepare(
+    `INSERT INTO belgeler (evrak_id, kod, teslim, karar, karar_notu, karar_veren, karar_tarihi, kullanici, tarih)
+     VALUES (?, ?, 1, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (evrak_id, kod) DO UPDATE SET
+       karar = excluded.karar, karar_notu = excluded.karar_notu,
+       karar_veren = excluded.karar_veren, karar_tarihi = excluded.karar_tarihi`,
+  ).run(id, kod, karar ?? '', not ?? '', karar ? ad : '', karar ? simdi : '', ad, simdi);
+
+  if (karar) {
+    db.prepare(
+      'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(
+      yeniId(),
+      id,
+      simdi,
+      evrak.durum,
+      `${belgeAdi(evrak.tur as Tur, kod)} ${karar === 'uygun' ? 'uygun bulundu' : 'uygun bulunmadı'}${
+        not ? `: ${not}` : ''
+      }`,
+      ad,
+    );
+  }
+  yanit.json(tekEvrak(id));
+});
 
 app.get('/api/ekler/:id', korumali, (istek, yanit) => {
   const ek = db.prepare('SELECT * FROM ekler WHERE id = ?').get(String(istek.params.id)) as

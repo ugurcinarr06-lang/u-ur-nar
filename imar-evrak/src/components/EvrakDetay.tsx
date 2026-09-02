@@ -3,6 +3,7 @@ import { belgeListesi } from '../belgeler';
 import { DURUMLAR, turAdi } from '../data';
 import type { Durum, Ek, Evrak } from '../types';
 import { boyutGoster, gunFarki, tarihGoster, tarihSaatGoster } from '../utils';
+import { IncelemeKutusu } from './Inceleme';
 import { DurumRozeti } from './Rozet';
 
 interface Props {
@@ -21,6 +22,9 @@ interface Props {
   /** Eki silme yetkisi (yükleyen kişi veya müdür). */
   ekSilinebilir?: (ek: Ek) => boolean;
   onBelgeIsaretle: (kod: string, teslim: boolean) => void;
+  /** Memurun içerik kararı; sunucu kipinde vardır. */
+  onBelgeKarar?: (kod: string, karar: 'uygun' | 'uygunsuz' | '', not: string) => void;
+  onIncelemeYenile?: (ekId: string) => void;
   /** Eksik belge yazısını açar; eksik yoksa çağrılmaz. */
   onEksikYazi: () => void;
 }
@@ -46,6 +50,8 @@ export function EvrakDetay({
   ekAdresi,
   ekSilinebilir,
   onBelgeIsaretle,
+  onBelgeKarar,
+  onIncelemeYenile,
   onEksikYazi,
 }: Props) {
   const [durum, setDurum] = useState<Durum>(evrak.durum);
@@ -75,24 +81,30 @@ export function EvrakDetay({
 
   /** Bir belgeye veya genel eke bağlı dosya satırı. */
   const EkSatiri = ({ ek }: { ek: Ek }) => (
-    <li className="flex items-center justify-between gap-3">
-      <a href={ekAdresi?.(ek.id)} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
-        <span className="block truncate text-sm text-slate-900 underline decoration-slate-300 underline-offset-2">
-          {ek.ad}
-        </span>
-        <span className="block text-xs text-slate-500">
-          {boyutGoster(ek.boyut)} · {ek.yukleyen} · {tarihGoster(ek.tarih)}
-        </span>
-      </a>
-      {onEkSil && (ekSilinebilir?.(ek) ?? true) && (
-        <button
-          type="button"
-          onClick={() => onEkSil(ek.id)}
-          className="shrink-0 text-xs font-medium text-rose-700 hover:underline"
-        >
-          sil
-        </button>
-      )}
+    <li>
+      <div className="flex items-center justify-between gap-3">
+        <a href={ekAdresi?.(ek.id)} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
+          <span className="block truncate text-sm text-slate-900 underline decoration-slate-300 underline-offset-2">
+            {ek.ad}
+          </span>
+          <span className="block text-xs text-slate-500">
+            {boyutGoster(ek.boyut)} · {ek.yukleyen} · {tarihGoster(ek.tarih)}
+          </span>
+        </a>
+        {onEkSil && (ekSilinebilir?.(ek) ?? true) && (
+          <button
+            type="button"
+            onClick={() => onEkSil(ek.id)}
+            className="shrink-0 text-xs font-medium text-rose-700 hover:underline"
+          >
+            sil
+          </button>
+        )}
+      </div>
+      <IncelemeKutusu
+        inceleme={ek.inceleme}
+        onYenile={onIncelemeYenile ? () => onIncelemeYenile(ek.id) : undefined}
+      />
     </li>
   );
 
@@ -227,6 +239,57 @@ export function EvrakDetay({
                       elle işaretlendi · {kayit.kullanici}
                       {kayit.tarih ? ` · ${tarihGoster(kayit.tarih)}` : ''}
                     </span>
+                  )}
+
+                  {onBelgeKarar && teslimMi(b.kod) && (
+                    <div className="ml-6 mt-1.5 flex flex-wrap items-center gap-2">
+                      {kayit?.karar ? (
+                        <>
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                              kayit.karar === 'uygun'
+                                ? 'bg-emerald-100 text-emerald-800 ring-emerald-300'
+                                : 'bg-rose-100 text-rose-800 ring-rose-300'
+                            }`}
+                          >
+                            {kayit.karar === 'uygun' ? 'Uygun bulundu' : 'Uygun bulunmadı'}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {kayit.kararVeren}
+                            {kayit.kararTarihi ? ` · ${tarihGoster(kayit.kararTarihi)}` : ''}
+                            {kayit.kararNotu ? ` — ${kayit.kararNotu}` : ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => onBelgeKarar(b.kod, '', '')}
+                            className="text-xs text-slate-500 underline"
+                          >
+                            kararı geri al
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-xs text-slate-500">Memur kararı:</span>
+                          <button
+                            type="button"
+                            onClick={() => onBelgeKarar(b.kod, 'uygun', '')}
+                            className="rounded-lg border border-emerald-300 px-2 py-0.5 text-xs font-medium text-emerald-800 hover:bg-emerald-50"
+                          >
+                            uygun
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const neden = prompt('Neden uygun bulunmadı?') ?? '';
+                              if (neden.trim()) onBelgeKarar(b.kod, 'uygunsuz', neden.trim());
+                            }}
+                            className="rounded-lg border border-rose-300 px-2 py-0.5 text-xs font-medium text-rose-800 hover:bg-rose-50"
+                          >
+                            uygun değil
+                          </button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </li>
               );
