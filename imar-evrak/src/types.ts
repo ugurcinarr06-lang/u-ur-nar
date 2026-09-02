@@ -44,6 +44,8 @@ export interface Basvuran {
 /** Evraka bağlı dosya (dilekçe taraması, proje pdf'i, tutanak fotoğrafı…). */
 export interface Ek {
   id: string;
+  /** Bağlı olduğu kontrol listesi maddesi; boşsa dosya genel ektir. */
+  belgeKodu: string;
   /** Kullanıcının yüklediği özgün dosya adı. */
   ad: string;
   /** Bayt cinsinden boyut. */

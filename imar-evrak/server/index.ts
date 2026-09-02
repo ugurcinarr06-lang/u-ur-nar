@@ -4,6 +4,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { COOKIE_ADI, OTURUM_SURESI_MS, sifreDogru, sifreOzeti, yeniId, yeniToken } from './auth.js';
 import { EKLER_KLASORU, db, ilkKurulum, oturumTemizle } from './db.js';
+import { belgeAdi } from '../src/belgeler.js';
 import type { BelgeDurumu, Durum, Ek, Evrak, Tur } from '../src/types.js';
 
 type Rol = 'mudur' | 'memur';
@@ -42,6 +43,7 @@ interface EkSatir {
   evrak_id: string;
   ad: string;
   dosya: string;
+  belge_kodu: string;
   tur: string;
   boyut: number;
   yukleyen: string;
@@ -249,6 +251,7 @@ app.delete('/api/kullanicilar/:id', korumali, sadeceMudur, (istek: Istek, yanit)
 
 const ekDon = (e: EkSatir): Ek => ({
   id: e.id,
+  belgeKodu: e.belge_kodu ?? '',
   ad: e.ad,
   boyut: e.boyut,
   tur: e.tur,
@@ -506,7 +509,10 @@ app.post(
     const id = String(istek.params.id);
     const dosyalar = (istek.files as Express.Multer.File[] | undefined) ?? [];
 
-    if (!db.prepare('SELECT durum FROM evraklar WHERE id = ?').get(id)) {
+    const evrak = db.prepare('SELECT durum, tur FROM evraklar WHERE id = ?').get(id) as
+      | { durum: string; tur: string }
+      | undefined;
+    if (!evrak) {
       for (const d of dosyalar) rmSync(d.path, { force: true });
       yanit.status(404).json({ hata: 'Evrak bulunamadı.' });
       return;
@@ -517,13 +523,19 @@ app.post(
     }
 
     const simdi = new Date().toISOString();
-    const durum = (db.prepare('SELECT durum FROM evraklar WHERE id = ?').get(id) as {
-      durum: string;
-    }).durum;
+    const durum = evrak.durum;
+    // Kontrol listesindeki bir maddeye yükleniyorsa kodu gövdede gelir.
+    const belgeKodu = String((istek.body as { belgeKodu?: string }).belgeKodu ?? '').trim();
 
     const ekle = db.prepare(
-      `INSERT INTO ekler (id, evrak_id, ad, dosya, tur, boyut, yukleyen, tarih)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ekler (id, evrak_id, ad, dosya, belge_kodu, tur, boyut, yukleyen, tarih)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const belgeIsaretle = db.prepare(
+      `INSERT INTO belgeler (evrak_id, kod, teslim, kullanici, tarih)
+       VALUES (?, ?, 1, ?, ?)
+       ON CONFLICT (evrak_id, kod)
+       DO UPDATE SET teslim = 1, kullanici = excluded.kullanici, tarih = excluded.tarih`,
     );
     const islemYaz = db.prepare(
       'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
@@ -534,14 +546,28 @@ app.post(
       for (const d of dosyalar) {
         const ad = adiDuzelt(d.originalname);
         adlar.push(ad);
-        ekle.run(yeniId(), id, ad, d.filename, d.mimetype, d.size, istek.kullanici!.ad, simdi);
+        ekle.run(
+          yeniId(),
+          id,
+          ad,
+          d.filename,
+          belgeKodu,
+          d.mimetype,
+          d.size,
+          istek.kullanici!.ad,
+          simdi,
+        );
       }
+      // Belgeye yüklenen dosya, o maddeyi teslim alınmış sayar.
+      if (belgeKodu) belgeIsaretle.run(id, belgeKodu, istek.kullanici!.ad, simdi);
       islemYaz.run(
         yeniId(),
         id,
         simdi,
         durum,
-        `Dosya eklendi: ${adlar.join(', ')}`,
+        belgeKodu
+          ? `${belgeAdi(evrak.tur as Tur, belgeKodu)} teslim alındı: ${adlar.join(', ')}`
+          : `Dosya eklendi: ${adlar.join(', ')}`,
         istek.kullanici!.ad,
       );
     })();
@@ -586,14 +612,43 @@ app.delete('/api/ekler/:id', korumali, (istek: Istek, yanit) => {
     return;
   }
   const simdi = new Date().toISOString();
-  const durum = (db.prepare('SELECT durum FROM evraklar WHERE id = ?').get(ek.evrak_id) as {
+  const evrak = db.prepare('SELECT durum, tur FROM evraklar WHERE id = ?').get(ek.evrak_id) as {
     durum: string;
-  }).durum;
+    tur: string;
+  };
+  const durum = evrak.durum;
   db.prepare('DELETE FROM ekler WHERE id = ?').run(ek.id);
   rmSync(join(EKLER_KLASORU, ek.dosya), { force: true });
+
+  // Bir belgenin son dosyası da silindiyse madde yeniden eksik sayılır.
+  let isaretKalkti = false;
+  if (ek.belge_kodu) {
+    const kalan = db
+      .prepare('SELECT COUNT(*) AS n FROM ekler WHERE evrak_id = ? AND belge_kodu = ?')
+      .get(ek.evrak_id, ek.belge_kodu) as { n: number };
+    if (kalan.n === 0) {
+      db.prepare('DELETE FROM belgeler WHERE evrak_id = ? AND kod = ?').run(
+        ek.evrak_id,
+        ek.belge_kodu,
+      );
+      isaretKalkti = true;
+    }
+  }
+
   db.prepare(
     'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
-  ).run(yeniId(), ek.evrak_id, simdi, durum, `Dosya silindi: ${ek.ad}`, istek.kullanici!.ad);
+  ).run(
+    yeniId(),
+    ek.evrak_id,
+    simdi,
+    durum,
+    `Dosya silindi: ${ek.ad}${
+      isaretKalkti
+        ? ` — ${belgeAdi(evrak.tur as Tur, ek.belge_kodu)} yeniden eksik sayıldı`
+        : ''
+    }`,
+    istek.kullanici!.ad,
+  );
   yanit.json(tekEvrak(ek.evrak_id));
 });
 

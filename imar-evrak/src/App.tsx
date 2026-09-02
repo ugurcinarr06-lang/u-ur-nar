@@ -154,10 +154,10 @@ export default function App() {
       setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
     });
 
-  const ekYukle = (evrakId: string, dosyalar: File[]) =>
+  const ekYukle = (evrakId: string, dosyalar: File[], belgeKodu: string) =>
     void calistir(async () => {
       if (!depo?.ekYukle) return;
-      const guncel = await depo.ekYukle(evrakId, dosyalar);
+      const guncel = await depo.ekYukle(evrakId, dosyalar, belgeKodu);
       setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
     });
 
@@ -356,7 +356,11 @@ export default function App() {
               onDuzenle={() => setForm(secili)}
               onSil={() => sil(secili.id)}
               onIslem={(durum, not) => islemEkle(secili.id, durum, not)}
-              onEkYukle={depo?.ekYukle ? (dosyalar) => ekYukle(secili.id, dosyalar) : undefined}
+              onEkYukle={
+                depo?.ekYukle
+                  ? (dosyalar, belgeKodu) => ekYukle(secili.id, dosyalar, belgeKodu)
+                  : undefined
+              }
               onEkSil={depo?.ekSil ? ekSil : undefined}
               ekAdresi={depo?.ekAdresi}
               ekSilinebilir={(ek) => oturum?.rol === 'mudur' || ek.yukleyen === oturum?.ad}

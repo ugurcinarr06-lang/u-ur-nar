@@ -68,6 +68,7 @@ db.exec(`
     evrak_id  TEXT NOT NULL REFERENCES evraklar(id) ON DELETE CASCADE,
     ad        TEXT NOT NULL,
     dosya     TEXT NOT NULL,
+    belge_kodu TEXT NOT NULL DEFAULT '',
     tur       TEXT NOT NULL DEFAULT '',
     boyut     INTEGER NOT NULL,
     yukleyen  TEXT NOT NULL,
@@ -87,6 +88,16 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS islemler_evrak ON islemler(evrak_id, tarih);
   CREATE INDEX IF NOT EXISTS evraklar_parsel ON evraklar(ada, parsel);
 `);
+
+/** Önceki sürümlerde açılmış veritabanlarına eksik sütunları ekler. */
+function gocleriUygula(): void {
+  const sutunlar = db.prepare('PRAGMA table_info(ekler)').all() as { name: string }[];
+  if (!sutunlar.some((s) => s.name === 'belge_kodu')) {
+    db.exec("ALTER TABLE ekler ADD COLUMN belge_kodu TEXT NOT NULL DEFAULT ''");
+  }
+}
+
+gocleriUygula();
 
 /**
  * İlk çalıştırmada bir müdür hesabı açar. Şifre IMAR_ADMIN_SIFRE ile

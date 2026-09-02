@@ -34,12 +34,17 @@ tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
   yapı denetim sözleşmesi…). Teslim alınanlar işaretlenir, "7/14 zorunlu
   belge" göstergesi ilerlemeyi gösterir; kimin ne zaman işaretlediği yazar.
   Listeler `src/belgeler.ts` içinden düzenlenir.
+- **Belgenin kendisi listeden yüklenir:** her satırın sağındaki "dosya
+  yükle" ile o belgenin taraması eklenir; dosya satırın altında görünür ve
+  madde **kendiliğinden teslim alınmış** sayılır. Son dosyası silinirse
+  madde yeniden eksiğe döner. Elle işaretleme, fiziksel teslim alınıp
+  taranmamış belgeler için kalır ("elle işaretlendi" notuyla ayrılır).
 - **Eksik belge yazısı:** işaretlenmemiş zorunlu belgelerden, başvurana
   verilecek resmi yazı üretilir (kurum başlığı, sayı/konu, ada-parsel,
   numaralı eksik listesi, 30 gün süre kaydı) ve yazdırılır. Koşullu
   belgeler yazıya girmez. Kurum adı bir kez yazılır, tarayıcıda saklanır.
-- **Dosya ekleri:** evraka dilekçe taraması, proje pdf'i, tutanak fotoğrafı
-  eklenir (pdf, jpg/png/tiff, doc/docx, xls/xlsx, dwg/dxf, zip; dosya başına
+- **Diğer ekler:** kontrol listesine girmeyen belgeler (tutanak, yazışma,
+  fotoğraf) evraka doğrudan eklenir (pdf, jpg/png/tiff, doc/docx, xls/xlsx, dwg/dxf, zip; dosya başına
   25 MB, en çok 10 dosya). Ekleme ve silme işlem geçmişine yazılır; eki
   yükleyen kişi veya müdür silebilir. **Yalnızca sunucu kipinde.**
 - **Dışa aktarma:** filtrelenmiş listeyi Excel uyumlu CSV olarak indirme,

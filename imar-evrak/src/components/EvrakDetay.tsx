@@ -15,7 +15,7 @@ interface Props {
   /** Durum değişikliği veya sadece not ekleme. */
   onIslem: (durum: Durum, not: string) => void;
   /** Ek yükleme yalnızca sunucu kipinde vardır; yoksa bölüm bilgi verir. */
-  onEkYukle?: (dosyalar: File[]) => void;
+  onEkYukle?: (dosyalar: File[], belgeKodu: string) => void;
   onEkSil?: (ekId: string) => void;
   ekAdresi?: (ekId: string) => string;
   /** Eki silme yetkisi (yükleyen kişi veya müdür). */
@@ -51,18 +51,50 @@ export function EvrakDetay({
   const [durum, setDurum] = useState<Durum>(evrak.durum);
   const [not, setNot] = useState('');
   const dosyaGirdisi = useRef<HTMLInputElement>(null);
+  /** Dosya seçme penceresinin hangi belge için açıldığı; boş: genel ek. */
+  const secilenKod = useRef('');
 
   const tanimlar = belgeListesi(evrak.tur);
   const teslimMi = (kod: string) => evrak.belgeler.some((b) => b.kod === kod && b.teslim);
+  const belgeninEkleri = (kod: string) => evrak.ekler.filter((e) => e.belgeKodu === kod);
+  const genelEkler = evrak.ekler.filter((e) => !e.belgeKodu);
   const zorunlular = tanimlar.filter((b) => b.zorunlu);
   const eksikSayisi = zorunlular.filter((b) => !teslimMi(b.kod)).length;
   const tamam = zorunlular.length - eksikSayisi;
+
+  const dosyaSec = (kod: string) => {
+    secilenKod.current = kod;
+    dosyaGirdisi.current?.click();
+  };
 
   const isle = () => {
     if (durum === evrak.durum && !not.trim()) return;
     onIslem(durum, not.trim());
     setNot('');
   };
+
+  /** Bir belgeye veya genel eke bağlı dosya satırı. */
+  const EkSatiri = ({ ek }: { ek: Ek }) => (
+    <li className="flex items-center justify-between gap-3">
+      <a href={ekAdresi?.(ek.id)} target="_blank" rel="noreferrer" className="min-w-0 flex-1">
+        <span className="block truncate text-sm text-slate-900 underline decoration-slate-300 underline-offset-2">
+          {ek.ad}
+        </span>
+        <span className="block text-xs text-slate-500">
+          {boyutGoster(ek.boyut)} · {ek.yukleyen} · {tarihGoster(ek.tarih)}
+        </span>
+      </a>
+      {onEkSil && (ekSilinebilir?.(ek) ?? true) && (
+        <button
+          type="button"
+          onClick={() => onEkSil(ek.id)}
+          className="shrink-0 text-xs font-medium text-rose-700 hover:underline"
+        >
+          sil
+        </button>
+      )}
+    </li>
+  );
 
   return (
     <aside className="flex h-full w-full flex-col bg-white shadow-xl sm:max-w-xl">
@@ -86,6 +118,21 @@ export function EvrakDetay({
           ×
         </button>
       </header>
+
+      {onEkYukle && (
+        <input
+          ref={dosyaGirdisi}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => {
+            const secilen = Array.from(e.target.files ?? []);
+            if (secilen.length) onEkYukle(secilen, secilenKod.current);
+            e.target.value = '';
+            secilenKod.current = '';
+          }}
+        />
+      )}
 
       <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4">
         <dl className="grid grid-cols-2 gap-4 text-sm">
@@ -133,30 +180,51 @@ export function EvrakDetay({
             </span>
           </div>
 
-          <ul className="mt-3 space-y-1.5">
+          <ul className="mt-3 divide-y divide-slate-100 rounded-lg border border-slate-200">
             {tanimlar.map((b) => {
               const kayit = evrak.belgeler.find((x) => x.kod === b.kod);
+              const dosyalar = belgeninEkleri(b.kod);
               return (
-                <li key={b.kod} className="text-sm">
-                  <label className="flex cursor-pointer items-start gap-2">
-                    <input
-                      type="checkbox"
-                      checked={teslimMi(b.kod)}
-                      onChange={(e) => onBelgeIsaretle(b.kod, e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-600"
-                    />
-                    <span className={teslimMi(b.kod) ? 'text-slate-500 line-through' : ''}>
-                      {b.ad}
-                      {!b.zorunlu && (
-                        <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
-                          koşullu
-                        </span>
-                      )}
-                    </span>
-                  </label>
-                  {kayit?.kullanici && (
+                <li key={b.kod} className="px-3 py-2.5 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <label className="flex flex-1 cursor-pointer items-start gap-2">
+                      <input
+                        type="checkbox"
+                        checked={teslimMi(b.kod)}
+                        onChange={(e) => onBelgeIsaretle(b.kod, e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-600"
+                      />
+                      <span className={teslimMi(b.kod) ? 'text-slate-500' : ''}>
+                        {b.ad}
+                        {!b.zorunlu && (
+                          <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                            koşullu
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                    {onEkYukle && (
+                      <button
+                        type="button"
+                        onClick={() => dosyaSec(b.kod)}
+                        className="shrink-0 text-xs font-medium text-slate-700 underline"
+                      >
+                        {dosyalar.length ? 'dosya ekle' : 'dosya yükle'}
+                      </button>
+                    )}
+                  </div>
+
+                  {dosyalar.length > 0 && (
+                    <ul className="ml-6 mt-1.5 space-y-1.5">
+                      {dosyalar.map((ek) => (
+                        <EkSatiri key={ek.id} ek={ek} />
+                      ))}
+                    </ul>
+                  )}
+
+                  {dosyalar.length === 0 && kayit?.kullanici && (
                     <span className="ml-6 block text-xs text-slate-400">
-                      {kayit.kullanici}
+                      elle işaretlendi · {kayit.kullanici}
                       {kayit.tarih ? ` · ${tarihGoster(kayit.tarih)}` : ''}
                     </span>
                   )}
@@ -169,12 +237,12 @@ export function EvrakDetay({
         <div>
           <div className="flex items-center justify-between">
             <h3 className="text-xs uppercase tracking-wide text-slate-500">
-              Ekler{evrak.ekler.length > 0 && ` (${evrak.ekler.length})`}
+              Diğer ekler{genelEkler.length > 0 && ` (${genelEkler.length})`}
             </h3>
             {onEkYukle && (
               <button
                 type="button"
-                onClick={() => dosyaGirdisi.current?.click()}
+                onClick={() => dosyaSec('')}
                 className="text-xs font-medium text-slate-700 underline"
               >
                 dosya ekle
@@ -183,53 +251,17 @@ export function EvrakDetay({
           </div>
 
           {onEkYukle ? (
-            <>
-              <input
-                ref={dosyaGirdisi}
-                type="file"
-                multiple
-                hidden
-                onChange={(e) => {
-                  const secilen = Array.from(e.target.files ?? []);
-                  if (secilen.length) onEkYukle(secilen);
-                  e.target.value = '';
-                }}
-              />
-              {evrak.ekler.length === 0 ? (
-                <p className="mt-2 text-sm text-slate-500">
-                  Dilekçe taraması, proje pdf'i veya tutanak fotoğrafı ekleyebilirsiniz.
-                </p>
-              ) : (
-                <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200">
-                  {evrak.ekler.map((ek) => (
-                    <li key={ek.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                      <a
-                        href={ekAdresi?.(ek.id)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="min-w-0 flex-1"
-                      >
-                        <span className="block truncate text-sm font-medium text-slate-900 underline decoration-slate-300 underline-offset-2">
-                          {ek.ad}
-                        </span>
-                        <span className="block text-xs text-slate-500">
-                          {boyutGoster(ek.boyut)} · {ek.yukleyen} · {tarihGoster(ek.tarih)}
-                        </span>
-                      </a>
-                      {onEkSil && (ekSilinebilir?.(ek) ?? true) && (
-                        <button
-                          type="button"
-                          onClick={() => onEkSil(ek.id)}
-                          className="shrink-0 text-xs font-medium text-rose-700 hover:underline"
-                        >
-                          sil
-                        </button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
+            genelEkler.length === 0 ? (
+              <p className="mt-2 text-sm text-slate-500">
+                Kontrol listesine girmeyen belgeler (tutanak, yazışma, fotoğraf) buraya eklenir.
+              </p>
+            ) : (
+              <ul className="mt-2 space-y-2 rounded-lg border border-slate-200 px-3 py-2">
+                {genelEkler.map((ek) => (
+                  <EkSatiri key={ek.id} ek={ek} />
+                ))}
+              </ul>
+            )
           ) : (
             <p className="mt-2 text-sm text-slate-500">
               Dosya ekleri yalnızca ortak sunucu kipinde saklanabiliyor.
