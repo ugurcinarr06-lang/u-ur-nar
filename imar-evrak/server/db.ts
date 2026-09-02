@@ -74,6 +74,15 @@ db.exec(`
     tarih     TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS belgeler (
+    evrak_id  TEXT NOT NULL REFERENCES evraklar(id) ON DELETE CASCADE,
+    kod       TEXT NOT NULL,
+    teslim    INTEGER NOT NULL DEFAULT 0,
+    kullanici TEXT NOT NULL,
+    tarih     TEXT NOT NULL,
+    PRIMARY KEY (evrak_id, kod)
+  );
+
   CREATE INDEX IF NOT EXISTS ekler_evrak ON ekler(evrak_id, tarih);
   CREATE INDEX IF NOT EXISTS islemler_evrak ON islemler(evrak_id, tarih);
   CREATE INDEX IF NOT EXISTS evraklar_parsel ON evraklar(ada, parsel);

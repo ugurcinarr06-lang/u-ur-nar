@@ -42,9 +42,15 @@ export function ornekVeri(): Evrak[] {
     return d.toISOString().slice(0, 10);
   };
 
-  const kayit = (e: Omit<Evrak, 'gecmis' | 'ekler'> & { gecmis?: Evrak['gecmis'] }): Evrak => ({
+  const kayit = (
+    e: Omit<Evrak, 'gecmis' | 'ekler' | 'belgeler'> & {
+      gecmis?: Evrak['gecmis'];
+      belgeler?: Evrak['belgeler'];
+    },
+  ): Evrak => ({
     ...e,
     ekler: [],
+    belgeler: e.belgeler ?? [],
     gecmis: e.gecmis ?? [
       {
         id: `${e.id}-1`,
@@ -69,6 +75,9 @@ export function ornekVeri(): Evrak[] {
       tasinmaz: { mahalle: 'Cumhuriyet', ada: '412', parsel: '7', pafta: 'K23-b-04' },
       sorumlu: 'A. Demir',
       aciklama: 'Mimari, statik ve tesisat projeleri teslim edildi. Statik hesap kontrolü sürüyor.',
+      belgeler: ['dilekce', 'tapu', 'imar-durumu', 'mimari', 'statik', 'elektrik', 'mekanik'].map(
+        (kod) => ({ kod, teslim: true }),
+      ),
     }),
     kayit({
       id: 'ornek-2',

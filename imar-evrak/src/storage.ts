@@ -9,9 +9,9 @@ export function evraklariOku(): Evrak[] {
     const ham = localStorage.getItem(ANAHTAR);
     if (!ham) return ornekVeri();
     const veri = JSON.parse(ham) as unknown;
-    // Eski kayıtlarda "ekler" alanı yok; okurken tamamlıyoruz.
+    // Eski kayıtlarda "ekler"/"belgeler" alanı yok; okurken tamamlıyoruz.
     return Array.isArray(veri)
-      ? (veri as Evrak[]).map((e) => ({ ...e, ekler: e.ekler ?? [] }))
+      ? (veri as Evrak[]).map((e) => ({ ...e, ekler: e.ekler ?? [], belgeler: e.belgeler ?? [] }))
       : ornekVeri();
   } catch {
     // Bozuk/erişilemez depolama: uygulama yine de açılsın.
@@ -45,5 +45,9 @@ export function yedekCoz(metin: string): Evrak[] {
   if (veri?.uygulama !== 'imar-evrak' || !Array.isArray(veri.evraklar)) {
     throw new Error('Dosya bir İmar Evrak yedeği değil.');
   }
-  return (veri.evraklar as Evrak[]).map((e) => ({ ...e, ekler: e.ekler ?? [] }));
+  return (veri.evraklar as Evrak[]).map((e) => ({
+    ...e,
+    ekler: e.ekler ?? [],
+    belgeler: e.belgeler ?? [],
+  }));
 }

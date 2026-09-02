@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { EksikBelgeYazisi } from './components/EksikBelgeYazisi';
 import { EvrakDetay } from './components/EvrakDetay';
 import { EvrakFormu } from './components/EvrakFormu';
 import { EvrakListesi } from './components/EvrakListesi';
@@ -6,6 +7,7 @@ import { Filtreler } from './components/Filtreler';
 import { Giris } from './components/Giris';
 import { Kullanicilar } from './components/Kullanicilar';
 import { Ozet } from './components/Ozet';
+import { belgeListesi } from './belgeler';
 import { KAPALI_DURUMLAR } from './data';
 import { yedekCoz, yedekOlustur } from './storage';
 import type { Durum, Evrak, Filtre, Taslak } from './types';
@@ -31,6 +33,8 @@ export default function App() {
   /** null: form kapalı · 'yeni': yeni kayıt · Evrak: düzenleme */
   const [form, setForm] = useState<'yeni' | Evrak | null>(null);
   const [hesapAcik, setHesapAcik] = useState(false);
+  /** Eksik belge yazısı açık olan evrakın kimliği. */
+  const [yaziId, setYaziId] = useState<string | null>(null);
   const [uyari, setUyari] = useState<string | null>(null);
   const dosyaGirdisi = useRef<HTMLInputElement>(null);
 
@@ -67,6 +71,7 @@ export default function App() {
   }, [depo, hazir]);
 
   const secili = evraklar.find((e) => e.id === seciliId) ?? null;
+  const yazi = evraklar.find((e) => e.id === yaziId) ?? null;
 
   const sorumlular = useMemo(
     () => [...new Set(evraklar.map((e) => e.sorumlu).filter(Boolean))].sort(),
@@ -140,6 +145,13 @@ export default function App() {
       await depo.sil(id);
       setEvraklar((ö) => ö.filter((x) => x.id !== id));
       setSeciliId(null);
+    });
+
+  const belgeIsaretle = (evrakId: string, kod: string, teslim: boolean) =>
+    void calistir(async () => {
+      if (!depo) return;
+      const guncel = await depo.belgeIsaretle(evrakId, kod, teslim);
+      setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
     });
 
   const ekYukle = (evrakId: string, dosyalar: File[]) =>
@@ -348,6 +360,8 @@ export default function App() {
               onEkSil={depo?.ekSil ? ekSil : undefined}
               ekAdresi={depo?.ekAdresi}
               ekSilinebilir={(ek) => oturum?.rol === 'mudur' || ek.yukleyen === oturum?.ad}
+              onBelgeIsaretle={(kod, teslim) => belgeIsaretle(secili.id, kod, teslim)}
+              onEksikYazi={() => setYaziId(secili.id)}
             />
           </div>
         </div>
@@ -364,6 +378,16 @@ export default function App() {
       )}
 
       {hesapAcik && oturum && <Kullanicilar ben={oturum} onKapat={() => setHesapAcik(false)} />}
+
+      {yazi && (
+        <EksikBelgeYazisi
+          evrak={yazi}
+          eksikler={belgeListesi(yazi.tur).filter(
+            (b) => b.zorunlu && !yazi.belgeler.some((x) => x.kod === b.kod && x.teslim),
+          )}
+          onKapat={() => setYaziId(null)}
+        />
+      )}
     </div>
   );
 }

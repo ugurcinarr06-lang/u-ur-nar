@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { belgeListesi } from '../belgeler';
 import { DURUMLAR, turAdi } from '../data';
 import type { Durum, Ek, Evrak } from '../types';
 import { boyutGoster, gunFarki, tarihGoster, tarihSaatGoster } from '../utils';
@@ -19,6 +20,9 @@ interface Props {
   ekAdresi?: (ekId: string) => string;
   /** Eki silme yetkisi (yükleyen kişi veya müdür). */
   ekSilinebilir?: (ek: Ek) => boolean;
+  onBelgeIsaretle: (kod: string, teslim: boolean) => void;
+  /** Eksik belge yazısını açar; eksik yoksa çağrılmaz. */
+  onEksikYazi: () => void;
 }
 
 function Satir({ ad, deger }: { ad: string; deger: string }) {
@@ -41,10 +45,18 @@ export function EvrakDetay({
   onEkSil,
   ekAdresi,
   ekSilinebilir,
+  onBelgeIsaretle,
+  onEksikYazi,
 }: Props) {
   const [durum, setDurum] = useState<Durum>(evrak.durum);
   const [not, setNot] = useState('');
   const dosyaGirdisi = useRef<HTMLInputElement>(null);
+
+  const tanimlar = belgeListesi(evrak.tur);
+  const teslimMi = (kod: string) => evrak.belgeler.some((b) => b.kod === kod && b.teslim);
+  const zorunlular = tanimlar.filter((b) => b.zorunlu);
+  const eksikSayisi = zorunlular.filter((b) => !teslimMi(b.kod)).length;
+  const tamam = zorunlular.length - eksikSayisi;
 
   const isle = () => {
     if (durum === evrak.durum && !not.trim()) return;
@@ -95,6 +107,64 @@ export function EvrakDetay({
             <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{evrak.aciklama}</p>
           </div>
         )}
+
+        <div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs uppercase tracking-wide text-slate-500">Belge kontrol listesi</h3>
+            <button
+              type="button"
+              onClick={onEksikYazi}
+              disabled={eksikSayisi === 0}
+              className="text-xs font-medium text-slate-700 underline disabled:text-slate-400 disabled:no-underline"
+            >
+              eksik belge yazısı
+            </button>
+          </div>
+
+          <div className="mt-2 flex items-center gap-2">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className={`h-full rounded-full ${eksikSayisi === 0 ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                style={{ width: `${zorunlular.length ? (tamam / zorunlular.length) * 100 : 0}%` }}
+              />
+            </div>
+            <span className="text-xs tabular-nums text-slate-600">
+              {tamam}/{zorunlular.length} zorunlu belge
+            </span>
+          </div>
+
+          <ul className="mt-3 space-y-1.5">
+            {tanimlar.map((b) => {
+              const kayit = evrak.belgeler.find((x) => x.kod === b.kod);
+              return (
+                <li key={b.kod} className="text-sm">
+                  <label className="flex cursor-pointer items-start gap-2">
+                    <input
+                      type="checkbox"
+                      checked={teslimMi(b.kod)}
+                      onChange={(e) => onBelgeIsaretle(b.kod, e.target.checked)}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-600"
+                    />
+                    <span className={teslimMi(b.kod) ? 'text-slate-500 line-through' : ''}>
+                      {b.ad}
+                      {!b.zorunlu && (
+                        <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                          koşullu
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                  {kayit?.kullanici && (
+                    <span className="ml-6 block text-xs text-slate-400">
+                      {kayit.kullanici}
+                      {kayit.tarih ? ` · ${tarihGoster(kayit.tarih)}` : ''}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
 
         <div>
           <div className="flex items-center justify-between">

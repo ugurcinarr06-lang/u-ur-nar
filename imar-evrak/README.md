@@ -29,6 +29,15 @@ tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
   durum–tür–personel filtreleri, "sadece süresi geçenler".
 - **Özet kartları:** toplam, açık dosya, eksik evrak, süresi geçen
   (tıklayınca ilgili filtre uygulanır).
+- **Belge kontrol listesi:** evrak türüne göre istenen belgeler listelenir
+  (ör. yapı ruhsatında tapu, imar durumu, mimari/statik proje, zemin etüdü,
+  yapı denetim sözleşmesi…). Teslim alınanlar işaretlenir, "7/14 zorunlu
+  belge" göstergesi ilerlemeyi gösterir; kimin ne zaman işaretlediği yazar.
+  Listeler `src/belgeler.ts` içinden düzenlenir.
+- **Eksik belge yazısı:** işaretlenmemiş zorunlu belgelerden, başvurana
+  verilecek resmi yazı üretilir (kurum başlığı, sayı/konu, ada-parsel,
+  numaralı eksik listesi, 30 gün süre kaydı) ve yazdırılır. Koşullu
+  belgeler yazıya girmez. Kurum adı bir kez yazılır, tarayıcıda saklanır.
 - **Dosya ekleri:** evraka dilekçe taraması, proje pdf'i, tutanak fotoğrafı
   eklenir (pdf, jpg/png/tiff, doc/docx, xls/xlsx, dwg/dxf, zip; dosya başına
   25 MB, en çok 10 dosya). Ekleme ve silme işlem geçmişine yazılır; eki
@@ -90,6 +99,7 @@ USB ile taşınabilir veya bir iç ağ paylaşımına konabilir.
 | --- | --- | --- |
 | Evrak açma, düzenleme, işlem/not ekleme | ✓ | ✓ |
 | Dosya ekleme | ✓ | ✓ |
+| Belge işaretleme, eksik belge yazısı | ✓ | ✓ |
 | Ek silme | yalnızca kendi yüklediğini | tümünü |
 | Evrak silme | — | ✓ |
 | Personel ekleme/silme | — | ✓ |
@@ -127,24 +137,25 @@ src/
   App.tsx                  Durum yönetimi, filtreleme, dışa aktarma
   types.ts                 Evrak, İşlem, Filtre tipleri
   data.ts                  Durum/tür sabitleri, örnek veri
+  belgeler.ts              Türe göre istenen belge listeleri
   storage.ts               localStorage okuma-yazma, yedek çözümleme
   utils.ts                 Tarih/gün hesapları, evrak no, CSV, indirme
   veri/
     depo.ts                Sunucu/yerel veri katmanı, oturum çağrıları
   components/
+    EksikBelgeYazisi.tsx   Yazdırılabilir eksik belge bildirimi
     Giris.tsx              Giriş ekranı
     Kullanicilar.tsx       Hesap ve personel yönetimi
     Ozet.tsx               Özet kartları
     Filtreler.tsx          Arama ve filtre çubuğu
     EvrakListesi.tsx       Tablo
-    EvrakDetay.tsx         Yan panel: bilgiler, ekler, işlem yap, geçmiş
+    EvrakDetay.tsx         Yan panel: bilgiler, belge listesi, ekler, geçmiş
     EvrakFormu.tsx         Yeni kayıt / düzenleme formu
     Rozet.tsx              Durum ve gecikme rozetleri
 ```
 
 ## Sonraki adımlar
 
-- Türe göre eksik belge kontrol listesi ve "eksik belge yazısı" çıktısı.
 - Gecikme hatırlatmaları (e-posta/SMS) ve müdüre haftalık özet.
 - Başvuru sahibi için takip numarasıyla salt-okunur durum sorgulama.
 - Parsel bazlı geçmiş: aynı ada/parseldeki tüm evraklar bir arada.

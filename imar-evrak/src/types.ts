@@ -53,6 +53,16 @@ export interface Ek {
   tarih: string;
 }
 
+/** Kontrol listesindeki bir belgenin teslim durumu. */
+export interface BelgeDurumu {
+  /** belgeler.ts içindeki tanım kodu. */
+  kod: string;
+  teslim: boolean;
+  /** Son işaretleyen personel ve zamanı. */
+  kullanici?: string;
+  tarih?: string;
+}
+
 export interface Evrak {
   id: string;
   /** İnsan tarafından okunan evrak numarası: 2026/0043 */
@@ -72,10 +82,12 @@ export interface Evrak {
   gecmis: Islem[];
   /** Yerel kipte dosya saklanamadığı için her zaman boştur. */
   ekler: Ek[];
+  /** Yalnızca işaretlenmiş belgeler tutulur; kalanlar eksik sayılır. */
+  belgeler: BelgeDurumu[];
 }
 
 /** Formdan gelen, henüz kaydedilmemiş evrak bilgileri. */
-export type Taslak = Omit<Evrak, 'id' | 'gecmis' | 'ekler'>;
+export type Taslak = Omit<Evrak, 'id' | 'gecmis' | 'ekler' | 'belgeler'>;
 
 /** Liste ekranındaki filtre durumu. */
 export interface Filtre {

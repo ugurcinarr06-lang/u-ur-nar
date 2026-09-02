@@ -4,7 +4,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
 import { COOKIE_ADI, OTURUM_SURESI_MS, sifreDogru, sifreOzeti, yeniId, yeniToken } from './auth.js';
 import { EKLER_KLASORU, db, ilkKurulum, oturumTemizle } from './db.js';
-import type { Durum, Ek, Evrak, Tur } from '../src/types.js';
+import type { BelgeDurumu, Durum, Ek, Evrak, Tur } from '../src/types.js';
 
 type Rol = 'mudur' | 'memur';
 interface Kullanici {
@@ -45,6 +45,14 @@ interface EkSatir {
   tur: string;
   boyut: number;
   yukleyen: string;
+  tarih: string;
+}
+
+interface BelgeSatir {
+  evrak_id: string;
+  kod: string;
+  teslim: number;
+  kullanici: string;
   tarih: string;
 }
 
@@ -248,7 +256,19 @@ const ekDon = (e: EkSatir): Ek => ({
   tarih: e.tarih,
 });
 
-function evrakDon(satir: EvrakSatir, islemler: IslemSatir[], ekler: EkSatir[]): Evrak {
+const belgeDon = (b: BelgeSatir): BelgeDurumu => ({
+  kod: b.kod,
+  teslim: b.teslim === 1,
+  kullanici: b.kullanici,
+  tarih: b.tarih,
+});
+
+function evrakDon(
+  satir: EvrakSatir,
+  islemler: IslemSatir[],
+  ekler: EkSatir[],
+  belgeler: BelgeSatir[],
+): Evrak {
   return {
     id: satir.id,
     no: satir.no,
@@ -274,6 +294,7 @@ function evrakDon(satir: EvrakSatir, islemler: IslemSatir[], ekler: EkSatir[]): 
       kullanici: i.kullanici,
     })),
     ekler: ekler.map(ekDon),
+    belgeler: belgeler.map(belgeDon),
   };
 }
 
@@ -310,7 +331,12 @@ app.get('/api/evraklar', korumali, (_istek, yanit) => {
     | EvrakSatir[];
   const islemler = grupla(db.prepare('SELECT * FROM islemler ORDER BY tarih').all() as IslemSatir[]);
   const ekler = grupla(db.prepare('SELECT * FROM ekler ORDER BY tarih').all() as EkSatir[]);
-  yanit.json(evraklar.map((e) => evrakDon(e, islemler.get(e.id) ?? [], ekler.get(e.id) ?? [])));
+  const belgeler = grupla(db.prepare('SELECT * FROM belgeler').all() as BelgeSatir[]);
+  yanit.json(
+    evraklar.map((e) =>
+      evrakDon(e, islemler.get(e.id) ?? [], ekler.get(e.id) ?? [], belgeler.get(e.id) ?? []),
+    ),
+  );
 });
 
 app.post('/api/evraklar', korumali, (istek: Istek, yanit) => {
@@ -393,8 +419,36 @@ function tekEvrak(id: string): Evrak {
   const ekler = db
     .prepare('SELECT * FROM ekler WHERE evrak_id = ? ORDER BY tarih')
     .all(id) as EkSatir[];
-  return evrakDon(satir, islemler, ekler);
+  const belgeler = db
+    .prepare('SELECT * FROM belgeler WHERE evrak_id = ?')
+    .all(id) as BelgeSatir[];
+  return evrakDon(satir, islemler, ekler, belgeler);
 }
+
+app.put('/api/evraklar/:id/belgeler', korumali, (istek: Istek, yanit) => {
+  const id = String(istek.params.id);
+  const { kod, teslim } = istek.body as { kod?: string; teslim?: boolean };
+  if (!kod) {
+    yanit.status(400).json({ hata: 'Belge kodu zorunlu.' });
+    return;
+  }
+  if (!db.prepare('SELECT 1 FROM evraklar WHERE id = ?').get(id)) {
+    yanit.status(404).json({ hata: 'Evrak bulunamadı.' });
+    return;
+  }
+  // İşaretsiz belge satırı tutulmaz: kaldırınca kayıt silinir.
+  if (teslim) {
+    db.prepare(
+      `INSERT INTO belgeler (evrak_id, kod, teslim, kullanici, tarih)
+       VALUES (?, ?, 1, ?, ?)
+       ON CONFLICT (evrak_id, kod)
+       DO UPDATE SET teslim = 1, kullanici = excluded.kullanici, tarih = excluded.tarih`,
+    ).run(id, kod, istek.kullanici!.ad, new Date().toISOString());
+  } else {
+    db.prepare('DELETE FROM belgeler WHERE evrak_id = ? AND kod = ?').run(id, kod);
+  }
+  yanit.json(tekEvrak(id));
+});
 
 /* ------------------------------------------------------------------ */
 /* Evrak ekleri                                                        */
