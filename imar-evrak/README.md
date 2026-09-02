@@ -19,7 +19,9 @@ uygulaması. Sunucu gerektirmez; veriler kullanıcının tarayıcısında
 - **Özet kartları:** toplam, açık dosya, eksik evrak, süresi geçen
   (tıklayınca ilgili filtre uygulanır).
 - **Dışa aktarma:** filtrelenmiş listeyi Excel uyumlu CSV olarak indirme,
-  JSON yedek alma/geri yükleme, listeyi yazdırma.
+  JSON yedek alma/geri yükleme, listeyi yazdırma. (Sayfa bir Claude Artifact
+  olarak açıldığında indirmeler `downloads` yeteneği üzerinden kullanıcı
+  onayına sunulur; normal tarayıcıda doğrudan iner.)
 
 ## Çalıştırma
 
@@ -38,6 +40,12 @@ Arayüz Tailwind CSS ile derlenir; çalışması için internet gerekmez
 
 Derleme: `npm run build` (önce `tsc --noEmit` ile tip kontrolü yapar),
 çıktıyı önizleme: `npm run preview`.
+
+### Tek dosyalık sürüm
+
+`npm run build:tek` komutu CSS ve JS'i tek bir HTML dosyasına gömer:
+`dist-tek/index.html`. Bu dosya sunucu istemez — çift tıklayarak açılabilir,
+USB ile taşınabilir veya bir iç ağ paylaşımına konabilir.
 
 ## Veri nerede duruyor
 

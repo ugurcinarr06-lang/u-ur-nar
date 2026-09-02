@@ -96,8 +96,34 @@ export function csvOlustur(evraklar: Evrak[]): string {
   return `﻿${basliklar.map(alan).join(';')}\n${satirlar.join('\n')}`;
 }
 
-/** Tarayıcıda dosya indirir. */
-export function dosyaIndir(adi: string, icerik: string, tip: string): void {
+interface KaydetIstegi {
+  filename: string;
+  data: string;
+}
+
+/**
+ * Claude Artifact olarak yayımlandığında sayfa doğrudan indirme yapamaz;
+ * dosya "downloads" yeteneği üzerinden kullanıcının onayına sunulur.
+ * Normal tarayıcıda (yerel/Vercel) bu yetenek yoktur, klasik yola düşeriz.
+ */
+async function artifactKaydedici(): Promise<((istek: KaydetIstegi) => Promise<unknown>) | null> {
+  const c = (window as { claude?: { use?: (ad: string) => Promise<unknown> } }).claude;
+  if (!c?.use) return null;
+  try {
+    const ns = (await c.use('downloads')) as { save?: (i: KaydetIstegi) => Promise<unknown> } | null;
+    return ns?.save ? ns.save.bind(ns) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Dosyayı kullanıcıya indirtir. Hata durumunda çağırana fırlatır. */
+export async function dosyaIndir(adi: string, icerik: string, tip: string): Promise<void> {
+  const kaydet = await artifactKaydedici();
+  if (kaydet) {
+    await kaydet({ filename: adi, data: icerik });
+    return;
+  }
   const url = URL.createObjectURL(new Blob([icerik], { type: tip }));
   const a = document.createElement('a');
   a.href = url;

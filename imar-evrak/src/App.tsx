@@ -147,13 +147,28 @@ export default function App() {
     setSeciliId(null);
   };
 
-  const yedekAl = () => {
-    dosyaIndir(
+  /** İndirme kullanıcı onayına bağlı olabilir; reddedilirse sessizce geçilir. */
+  const indir = async (adi: string, icerik: string, tip: string) => {
+    try {
+      await dosyaIndir(adi, icerik, tip);
+      setUyari(null);
+    } catch (hata) {
+      const kod = (hata as { code?: string } | null)?.code;
+      if (kod === 'declined') return;
+      setUyari(
+        kod === 'too_large'
+          ? 'Dosya çok büyük, indirilemedi.'
+          : 'Dosya indirilemedi. Tarayıcı bu sayfada indirmeye izin vermiyor olabilir.',
+      );
+    }
+  };
+
+  const yedekAl = () =>
+    indir(
       `imar-evrak-yedek-${new Date().toISOString().slice(0, 10)}.json`,
       JSON.stringify(yedekOlustur(evraklar), null, 2),
       'application/json',
     );
-  };
 
   const yedekYukle = async (dosya: File) => {
     try {
@@ -186,10 +201,16 @@ export default function App() {
               + Yeni evrak
             </button>
             <button type="button" className={dugme}
-              onClick={() => dosyaIndir(`imar-evrak-${new Date().toISOString().slice(0, 10)}.csv`, csvOlustur(listelenen), 'text/csv;charset=utf-8')}>
+              onClick={() =>
+                void indir(
+                  `imar-evrak-${new Date().toISOString().slice(0, 10)}.csv`,
+                  csvOlustur(listelenen),
+                  'text/csv;charset=utf-8',
+                )
+              }>
               CSV indir
             </button>
-            <button type="button" className={dugme} onClick={yedekAl}>
+            <button type="button" className={dugme} onClick={() => void yedekAl()}>
               Yedek al
             </button>
             <button type="button" className={dugme} onClick={() => dosyaGirdisi.current?.click()}>
