@@ -1,9 +1,17 @@
 # İmar Evrak Takip
 
 Belediye imar müdürlüğüne gelen evrakların (ruhsat, iskân, imar durumu,
-şikâyet…) kaydı, durum takibi ve süre kontrolü için tek sayfalık web
-uygulaması. Sunucu gerektirmez; veriler kullanıcının tarayıcısında
-(`localStorage`) saklanır, yedek dosyasıyla taşınır.
+şikâyet…) kaydı, durum takibi ve süre kontrolü için web uygulaması.
+
+İki kipte çalışır ve kipi kendisi seçer:
+
+| Kip | Ne zaman | Veri nerede | Giriş |
+| --- | --- | --- | --- |
+| **Sunucu** | `npm run basla` ile sunucu çalışıyorsa | ortak SQLite dosyası | kullanıcı adı + şifre |
+| **Yerel** | sunucu yoksa (tek dosyalık sürüm, Artifact, dosyadan açma) | tarayıcı `localStorage` | yok |
+
+Açılışta `/api/ben` denenir; cevap gelirse ortak veritabanı, gelmezse
+tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
 
 ## Neler var
 
@@ -27,13 +35,35 @@ uygulaması. Sunucu gerektirmez; veriler kullanıcının tarayıcısında
 
 **Gereksinim:** Node.js 20+
 
+### Kurum kullanımı (ortak veritabanı + giriş)
+
 ```bash
 cd imar-evrak
 npm install
-npm run dev
+npm run basla          # arayüzü derler ve sunucuyu başlatır
 ```
 
-Tarayıcıda `http://localhost:3100` adresini aç.
+`http://localhost:3200` adresini aç. İlk çalıştırmada bir **admin** hesabı
+oluşturulur ve şifresi konsola bir kez yazılır — not al, girdikten sonra
+**Hesap → Şifremi değiştir** ile değiştir. Şifreyi kendin belirlemek için:
+`IMAR_ADMIN_SIFRE=... npm run basla`.
+
+Diğer personeli müdür hesabı **Hesap → Yeni personel ekle** ile açar.
+Uygulamayı ağdaki bir bilgisayarda çalıştırırsan diğerleri
+`http://<bilgisayar-adı>:3200` üzerinden aynı listeyi görür.
+
+**Ortam değişkenleri**
+
+| Değişken | Varsayılan | Açıklama |
+| --- | --- | --- |
+| `PORT` | `3200` | Sunucu portu |
+| `IMAR_DB` | `veri/imar-evrak.db` | Veritabanı dosyası (ağ sürücüsü de olabilir) |
+| `IMAR_ADMIN_SIFRE` | rastgele | İlk kurulumdaki admin şifresi |
+
+### Geliştirme
+
+İki terminal: `npm run sunucu` (API, 3200) ve `npm run dev` (arayüz, 3100).
+Vite `/api` isteklerini sunucuya yönlendirir; `http://localhost:3100` aç.
 
 Arayüz Tailwind CSS ile derlenir; çalışması için internet gerekmez
 (CDN bağımlılığı yoktur), belediye iç ağında da açılır.
@@ -47,24 +77,39 @@ Derleme: `npm run build` (önce `tsc --noEmit` ile tip kontrolü yapar),
 `dist-tek/index.html`. Bu dosya sunucu istemez — çift tıklayarak açılabilir,
 USB ile taşınabilir veya bir iç ağ paylaşımına konabilir.
 
+## Yetkiler
+
+| | Memur | Müdür |
+| --- | --- | --- |
+| Evrak açma, düzenleme, işlem/not ekleme | ✓ | ✓ |
+| Evrak silme | — | ✓ |
+| Personel ekleme/silme | — | ✓ |
+| Kendi şifresini değiştirme | ✓ | ✓ |
+
+Her işlem, yapan kişinin adıyla evrakın geçmişine yazılır.
+
 ## Veri nerede duruyor
 
-Tüm kayıtlar tarayıcıdaki `localStorage` içinde `imar-evrak/v1` anahtarında
-tutulur. Bu yüzden:
+**Sunucu kipinde:** `veri/imar-evrak.db` (SQLite). Yedekleme bu dosyayı
+kopyalamaktır; sunucu kapalıyken kopyalamak en temizi. Oturumlar 12 saat
+sonra düşer, şifreler scrypt ile özetlenir.
 
-- Kayıtlar **o bilgisayarda, o tarayıcıda** kalır; kullanıcılar arasında
-  paylaşılmaz.
-- Tarayıcı verisi temizlenirse kayıtlar silinir — düzenli olarak
-  **Yedek al** ile JSON dosyası indirin.
-- Birden çok personelin aynı listeyi görmesi gerekiyorsa bir sunucu/veritabanı
-  katmanı eklenmelidir (bkz. Sonraki adımlar).
+**Yerel kipte:** tarayıcıdaki `localStorage` (`imar-evrak/v1`). Kayıtlar o
+bilgisayarda, o tarayıcıda kalır; tarayıcı verisi temizlenirse silinir —
+düzenli olarak **Yedek al** ile JSON indirin. İlk açılışta üç örnek kayıt
+gelir, silinebilir.
 
-İlk açılışta üç örnek kayıt gelir; silinebilir.
+İki kip arasında veri **Yedek al / Yedek yükle** ile taşınır (yükleme
+yalnızca yerel kipte açıktır).
 
 ## Dosya yapısı
 
 ```
 index.html                 Uygulama girişi
+server/
+  index.ts                 Express API + derlenmiş arayüzü sunar
+  db.ts                    SQLite şeması, ilk kurulum
+  auth.ts                  scrypt şifre özeti, oturum sabitleri
 src/
   main.tsx                 React kökü
   index.css                Tailwind girişi + yazdırma stilleri
@@ -73,7 +118,11 @@ src/
   data.ts                  Durum/tür sabitleri, örnek veri
   storage.ts               localStorage okuma-yazma, yedek çözümleme
   utils.ts                 Tarih/gün hesapları, evrak no, CSV, indirme
+  veri/
+    depo.ts                Sunucu/yerel veri katmanı, oturum çağrıları
   components/
+    Giris.tsx              Giriş ekranı
+    Kullanicilar.tsx       Hesap ve personel yönetimi
     Ozet.tsx               Özet kartları
     Filtreler.tsx          Arama ve filtre çubuğu
     EvrakListesi.tsx       Tablo
@@ -84,8 +133,9 @@ src/
 
 ## Sonraki adımlar
 
-- Kullanıcı girişi ve personel bazlı yetki (şu an işlem geçmişine sabit
-  "İmar Personeli" yazılır).
-- Ortak veritabanı (ör. Vercel + Postgres) ile çok kullanıcılı kullanım.
-- Evraka dosya eki (proje pdf'i, tutanak fotoğrafı).
-- Otomatik tebligat/SMS bilgilendirme ve gecikme hatırlatmaları.
+- Evraka dosya eki (proje pdf'i, dilekçe taraması, tutanak fotoğrafı).
+- Türe göre eksik belge kontrol listesi ve "eksik belge yazısı" çıktısı.
+- Gecikme hatırlatmaları (e-posta/SMS) ve müdüre haftalık özet.
+- Başvuru sahibi için takip numarasıyla salt-okunur durum sorgulama.
+- Parsel bazlı geçmiş: aynı ada/parseldeki tüm evraklar bir arada.
+- Eksik belge istendiğinde süre sayacının durması.

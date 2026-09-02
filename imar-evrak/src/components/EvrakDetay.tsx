@@ -9,6 +9,8 @@ interface Props {
   onKapat: () => void;
   onDuzenle: () => void;
   onSil: () => void;
+  /** Silme yetkisi yoksa düğme gizlenir (sunucu kipinde sadece müdür siler). */
+  silinebilir: boolean;
   /** Durum değişikliği veya sadece not ekleme. */
   onIslem: (durum: Durum, not: string) => void;
 }
@@ -22,7 +24,7 @@ function Satir({ ad, deger }: { ad: string; deger: string }) {
   );
 }
 
-export function EvrakDetay({ evrak, onKapat, onDuzenle, onSil, onIslem }: Props) {
+export function EvrakDetay({ evrak, onKapat, onDuzenle, onSil, onIslem, silinebilir }: Props) {
   const [durum, setDurum] = useState<Durum>(evrak.durum);
   const [not, setNot] = useState('');
 
@@ -135,13 +137,15 @@ export function EvrakDetay({ evrak, onKapat, onDuzenle, onSil, onIslem }: Props)
         >
           Düzenle
         </button>
-        <button
-          type="button"
-          onClick={onSil}
-          className="rounded-lg border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50"
-        >
-          Sil
-        </button>
+        {silinebilir && (
+          <button
+            type="button"
+            onClick={onSil}
+            className="rounded-lg border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50"
+          >
+            Sil
+          </button>
+        )}
       </footer>
     </aside>
   );

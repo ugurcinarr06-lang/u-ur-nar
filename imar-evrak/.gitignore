@@ -1,0 +1,5 @@
+# SQLite veritabanı ve yedekleri
+veri/
+*.db
+*.db-shm
+*.db-wal

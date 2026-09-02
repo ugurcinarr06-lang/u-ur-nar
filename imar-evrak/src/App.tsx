@@ -3,17 +3,21 @@ import { EvrakDetay } from './components/EvrakDetay';
 import { EvrakFormu } from './components/EvrakFormu';
 import { EvrakListesi } from './components/EvrakListesi';
 import { Filtreler } from './components/Filtreler';
+import { Giris } from './components/Giris';
+import { Kullanicilar } from './components/Kullanicilar';
 import { Ozet } from './components/Ozet';
-import { KAPALI_DURUMLAR, durumAdi } from './data';
-import { evraklariOku, evraklariYaz, yedekCoz, yedekOlustur } from './storage';
+import { KAPALI_DURUMLAR } from './data';
+import { yedekCoz, yedekOlustur } from './storage';
 import type { Durum, Evrak, Filtre } from './types';
+import { csvOlustur, dosyaIndir, gecikmisMi, sonrakiEvrakNo } from './utils';
 import {
-  csvOlustur,
-  dosyaIndir,
-  gecikmisMi,
-  sonrakiEvrakNo,
-  yeniId,
-} from './utils';
+  baslangicBelirle,
+  cikisYap,
+  type Baslangic,
+  type Depo,
+  type Oturum,
+  type Taslak,
+} from './veri/depo';
 
 const BOS_FILTRE: Filtre = {
   arama: '',
@@ -24,19 +28,50 @@ const BOS_FILTRE: Filtre = {
   sadeceAcik: false,
 };
 
-/** Bu sürümde oturum yok; işlem geçmişine yazılan sabit kullanıcı. */
-const KULLANICI = 'İmar Personeli';
-
 export default function App() {
-  const [evraklar, setEvraklar] = useState<Evrak[]>(evraklariOku);
+  const [baslangic, setBaslangic] = useState<Baslangic | null>(null);
+  const [oturum, setOturum] = useState<Oturum | null>(null);
+  const [evraklar, setEvraklar] = useState<Evrak[]>([]);
+  const [yukleniyor, setYukleniyor] = useState(true);
   const [filtre, setFiltre] = useState<Filtre>(BOS_FILTRE);
   const [seciliId, setSeciliId] = useState<string | null>(null);
   /** null: form kapalı · 'yeni': yeni kayıt · Evrak: düzenleme */
   const [form, setForm] = useState<'yeni' | Evrak | null>(null);
+  const [hesapAcik, setHesapAcik] = useState(false);
   const [uyari, setUyari] = useState<string | null>(null);
   const dosyaGirdisi = useRef<HTMLInputElement>(null);
 
-  useEffect(() => evraklariYaz(evraklar), [evraklar]);
+  const depo: Depo | null = baslangic?.depo ?? null;
+  const sunucuKipi = depo?.kip === 'sunucu';
+  /** Sunucu kipinde giriş yapılmadan liste okunamaz. */
+  const hazir = depo !== null && (!sunucuKipi || oturum !== null);
+
+  useEffect(() => {
+    baslangicBelirle()
+      .then((b) => {
+        setBaslangic(b);
+        setOturum(b.oturum);
+      })
+      .catch(() => setUyari('Uygulama başlatılamadı.'));
+  }, []);
+
+  useEffect(() => {
+    if (!depo || !hazir) return;
+    let iptal = false;
+    setYukleniyor(true);
+    depo
+      .liste()
+      .then((liste) => {
+        if (!iptal) setEvraklar(liste);
+      })
+      .catch((h: unknown) => setUyari(h instanceof Error ? h.message : 'Kayıtlar alınamadı.'))
+      .finally(() => {
+        if (!iptal) setYukleniyor(false);
+      });
+    return () => {
+      iptal = true;
+    };
+  }, [depo, hazir]);
 
   const secili = evraklar.find((e) => e.id === seciliId) ?? null;
 
@@ -73,79 +108,54 @@ export default function App() {
 
   const filtreAktif = JSON.stringify(filtre) !== JSON.stringify(BOS_FILTRE);
 
-  const kaydet = (taslak: Omit<Evrak, 'id' | 'gecmis'>) => {
-    if (form === 'yeni') {
-      const yeni: Evrak = {
-        ...taslak,
-        id: yeniId(),
-        gecmis: [
-          {
-            id: yeniId(),
-            tarih: new Date().toISOString(),
-            durum: taslak.durum,
-            not: 'Evrak kaydı açıldı.',
-            kullanici: KULLANICI,
-          },
-        ],
-      };
-      setEvraklar((ö) => [yeni, ...ö]);
-      setSeciliId(yeni.id);
-    } else if (form) {
-      const id = form.id;
-      setEvraklar((ö) =>
-        ö.map((e) =>
-          e.id === id
-            ? {
-                ...e,
-                ...taslak,
-                gecmis: [
-                  ...e.gecmis,
-                  {
-                    id: yeniId(),
-                    tarih: new Date().toISOString(),
-                    durum: taslak.durum,
-                    not: 'Kayıt bilgileri güncellendi.',
-                    kullanici: KULLANICI,
-                  },
-                ],
-              }
-            : e,
-        ),
-      );
+  /** Sunucu hatalarını tek yerde uyarıya çevirir. */
+  const calistir = async (is: () => Promise<void>) => {
+    try {
+      await is();
+      setUyari(null);
+    } catch (hata) {
+      setUyari(hata instanceof Error ? hata.message : 'İşlem tamamlanamadı.');
     }
-    setForm(null);
   };
 
-  const islemEkle = (id: string, durum: Durum, not: string) => {
-    setEvraklar((ö) =>
-      ö.map((e) =>
-        e.id === id
-          ? {
-              ...e,
-              durum,
-              gecmis: [
-                ...e.gecmis,
-                {
-                  id: yeniId(),
-                  tarih: new Date().toISOString(),
-                  durum,
-                  not: not || `Durum "${durumAdi(durum)}" olarak güncellendi.`,
-                  kullanici: KULLANICI,
-                },
-              ],
-            }
-          : e,
-      ),
-    );
-  };
+  const kaydet = (taslak: Taslak) =>
+    void calistir(async () => {
+      if (!depo) return;
+      if (form === 'yeni') {
+        const yeni = await depo.ekle(taslak);
+        setEvraklar((ö) => [yeni, ...ö]);
+        setSeciliId(yeni.id);
+      } else if (form) {
+        const guncel = await depo.guncelle(form.id, taslak);
+        setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
+      }
+      setForm(null);
+    });
 
-  const sil = (id: string) => {
-    const e = evraklar.find((x) => x.id === id);
-    if (!e) return;
-    if (!confirm(`${e.no} numaralı evrak kalıcı olarak silinsin mi?`)) return;
-    setEvraklar((ö) => ö.filter((x) => x.id !== id));
-    setSeciliId(null);
-  };
+  const islemEkle = (id: string, durum: Durum, not: string) =>
+    void calistir(async () => {
+      if (!depo) return;
+      const guncel = await depo.islemEkle(id, durum, not);
+      setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
+    });
+
+  const sil = (id: string) =>
+    void calistir(async () => {
+      if (!depo) return;
+      const e = evraklar.find((x) => x.id === id);
+      if (!e || !confirm(`${e.no} numaralı evrak kalıcı olarak silinsin mi?`)) return;
+      await depo.sil(id);
+      setEvraklar((ö) => ö.filter((x) => x.id !== id));
+      setSeciliId(null);
+    });
+
+  const cikis = () =>
+    void calistir(async () => {
+      await cikisYap();
+      setOturum(null);
+      setEvraklar([]);
+      setSeciliId(null);
+    });
 
   /** İndirme kullanıcı onayına bağlı olabilir; reddedilirse sessizce geçilir. */
   const indir = async (adi: string, icerik: string, tip: string) => {
@@ -173,7 +183,9 @@ export default function App() {
   const yedekYukle = async (dosya: File) => {
     try {
       const gelen = yedekCoz(await dosya.text());
+      if (!depo?.topluYaz) return;
       if (!confirm(`${gelen.length} kayıt yüklenecek. Mevcut liste değiştirilsin mi?`)) return;
+      await depo.topluYaz(gelen);
       setEvraklar(gelen);
       setSeciliId(null);
       setUyari(null);
@@ -185,6 +197,14 @@ export default function App() {
   const dugme =
     'rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50';
 
+  if (!baslangic) {
+    return <p className="p-10 text-center text-slate-500">Yükleniyor…</p>;
+  }
+
+  if (sunucuKipi && !oturum) {
+    return <Giris onGiris={setOturum} />;
+  }
+
   return (
     <div className="min-h-screen">
       <header className="no-print border-b border-slate-200 bg-white">
@@ -192,33 +212,53 @@ export default function App() {
           <div>
             <h1 className="text-xl font-semibold">İmar Evrak Takip</h1>
             <p className="text-sm text-slate-500">
-              Kayıt, durum takibi ve süre kontrolü — veriler bu tarayıcıda saklanır.
+              {sunucuKipi
+                ? `${oturum?.ad} · ${oturum?.rol === 'mudur' ? 'Müdür' : 'Memur'} — kayıtlar ortak veritabanında`
+                : 'Kayıt, durum takibi ve süre kontrolü — veriler bu tarayıcıda saklanır.'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setForm('yeni')}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
+            <button
+              type="button"
+              onClick={() => setForm('yeni')}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            >
               + Yeni evrak
             </button>
-            <button type="button" className={dugme}
+            <button
+              type="button"
+              className={dugme}
               onClick={() =>
                 void indir(
                   `imar-evrak-${new Date().toISOString().slice(0, 10)}.csv`,
                   csvOlustur(listelenen),
                   'text/csv;charset=utf-8',
                 )
-              }>
+              }
+            >
               CSV indir
             </button>
             <button type="button" className={dugme} onClick={() => void yedekAl()}>
               Yedek al
             </button>
-            <button type="button" className={dugme} onClick={() => dosyaGirdisi.current?.click()}>
-              Yedek yükle
-            </button>
+            {depo?.topluYaz && (
+              <button type="button" className={dugme} onClick={() => dosyaGirdisi.current?.click()}>
+                Yedek yükle
+              </button>
+            )}
             <button type="button" className={dugme} onClick={() => window.print()}>
               Yazdır
             </button>
+            {sunucuKipi && (
+              <>
+                <button type="button" className={dugme} onClick={() => setHesapAcik(true)}>
+                  Hesap
+                </button>
+                <button type="button" className={dugme} onClick={cikis}>
+                  Çıkış
+                </button>
+              </>
+            )}
             <input
               ref={dosyaGirdisi}
               type="file"
@@ -262,8 +302,11 @@ export default function App() {
           <Filtreler filtre={filtre} sorumlular={sorumlular} onDegis={setFiltre} />
           <div className="flex items-center gap-3 text-sm text-slate-500">
             <span>
-              {listelenen.length} kayıt gösteriliyor
-              {listelenen.length !== evraklar.length && ` (toplam ${evraklar.length})`}
+              {yukleniyor
+                ? 'Kayıtlar alınıyor…'
+                : `${listelenen.length} kayıt gösteriliyor${
+                    listelenen.length !== evraklar.length ? ` (toplam ${evraklar.length})` : ''
+                  }`}
             </span>
             {filtreAktif && (
               <button
@@ -281,12 +324,15 @@ export default function App() {
       </main>
 
       {secili && (
-        <div className="no-print fixed inset-0 z-20 flex justify-end bg-slate-900/40"
-          onClick={() => setSeciliId(null)}>
+        <div
+          className="no-print fixed inset-0 z-20 flex justify-end bg-slate-900/40"
+          onClick={() => setSeciliId(null)}
+        >
           <div className="h-full w-full sm:max-w-xl" onClick={(e) => e.stopPropagation()}>
             <EvrakDetay
               key={secili.id}
               evrak={secili}
+              silinebilir={!sunucuKipi || oturum?.rol === 'mudur'}
               onKapat={() => setSeciliId(null)}
               onDuzenle={() => setForm(secili)}
               onSil={() => sil(secili.id)}
@@ -305,6 +351,8 @@ export default function App() {
           onKaydet={kaydet}
         />
       )}
+
+      {hesapAcik && oturum && <Kullanicilar ben={oturum} onKapat={() => setHesapAcik(false)} />}
     </div>
   );
 }
