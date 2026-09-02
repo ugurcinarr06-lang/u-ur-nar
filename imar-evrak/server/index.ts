@@ -1,9 +1,10 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import multer from 'multer';
+import { existsSync, rmSync } from 'node:fs';
+import { extname, join, resolve } from 'node:path';
 import { COOKIE_ADI, OTURUM_SURESI_MS, sifreDogru, sifreOzeti, yeniId, yeniToken } from './auth.js';
-import { db, ilkKurulum, oturumTemizle } from './db.js';
-import type { Durum, Evrak, Tur } from '../src/types.js';
+import { EKLER_KLASORU, db, ilkKurulum, oturumTemizle } from './db.js';
+import type { Durum, Ek, Evrak, Tur } from '../src/types.js';
 
 type Rol = 'mudur' | 'memur';
 interface Kullanici {
@@ -34,6 +35,17 @@ interface EvrakSatir {
   pafta: string;
   sorumlu: string;
   aciklama: string;
+}
+
+interface EkSatir {
+  id: string;
+  evrak_id: string;
+  ad: string;
+  dosya: string;
+  tur: string;
+  boyut: number;
+  yukleyen: string;
+  tarih: string;
 }
 
 interface IslemSatir {
@@ -227,7 +239,16 @@ app.delete('/api/kullanicilar/:id', korumali, sadeceMudur, (istek: Istek, yanit)
 /* Evraklar                                                            */
 /* ------------------------------------------------------------------ */
 
-function evrakDon(satir: EvrakSatir, islemler: IslemSatir[]): Evrak {
+const ekDon = (e: EkSatir): Ek => ({
+  id: e.id,
+  ad: e.ad,
+  boyut: e.boyut,
+  tur: e.tur,
+  yukleyen: e.yukleyen,
+  tarih: e.tarih,
+});
+
+function evrakDon(satir: EvrakSatir, islemler: IslemSatir[], ekler: EkSatir[]): Evrak {
   return {
     id: satir.id,
     no: satir.no,
@@ -252,7 +273,19 @@ function evrakDon(satir: EvrakSatir, islemler: IslemSatir[]): Evrak {
       not: i.aciklama,
       kullanici: i.kullanici,
     })),
+    ekler: ekler.map(ekDon),
   };
+}
+
+/** Satırları evrak kimliğine göre gruplar. */
+function grupla<T extends { evrak_id: string }>(satirlar: T[]): Map<string, T[]> {
+  const harita = new Map<string, T[]>();
+  for (const s of satirlar) {
+    const liste = harita.get(s.evrak_id);
+    if (liste) liste.push(s);
+    else harita.set(s.evrak_id, [s]);
+  }
+  return harita;
 }
 
 const evrakAlanlari = (e: Partial<Evrak>) => ({
@@ -275,14 +308,9 @@ const evrakAlanlari = (e: Partial<Evrak>) => ({
 app.get('/api/evraklar', korumali, (_istek, yanit) => {
   const evraklar = db.prepare('SELECT * FROM evraklar ORDER BY gelis_tarihi DESC, no DESC').all() as
     | EvrakSatir[];
-  const islemler = db.prepare('SELECT * FROM islemler ORDER BY tarih').all() as IslemSatir[];
-  const gruplu = new Map<string, IslemSatir[]>();
-  for (const i of islemler) {
-    const liste = gruplu.get(i.evrak_id);
-    if (liste) liste.push(i);
-    else gruplu.set(i.evrak_id, [i]);
-  }
-  yanit.json(evraklar.map((e) => evrakDon(e, gruplu.get(e.id) ?? [])));
+  const islemler = grupla(db.prepare('SELECT * FROM islemler ORDER BY tarih').all() as IslemSatir[]);
+  const ekler = grupla(db.prepare('SELECT * FROM ekler ORDER BY tarih').all() as EkSatir[]);
+  yanit.json(evraklar.map((e) => evrakDon(e, islemler.get(e.id) ?? [], ekler.get(e.id) ?? [])));
 });
 
 app.post('/api/evraklar', korumali, (istek: Istek, yanit) => {
@@ -362,8 +390,158 @@ function tekEvrak(id: string): Evrak {
   const islemler = db
     .prepare('SELECT * FROM islemler WHERE evrak_id = ? ORDER BY tarih')
     .all(id) as IslemSatir[];
-  return evrakDon(satir, islemler);
+  const ekler = db
+    .prepare('SELECT * FROM ekler WHERE evrak_id = ? ORDER BY tarih')
+    .all(id) as EkSatir[];
+  return evrakDon(satir, islemler, ekler);
 }
+
+/* ------------------------------------------------------------------ */
+/* Evrak ekleri                                                        */
+/* ------------------------------------------------------------------ */
+
+/** İmar dosyalarında karşılaşılan biçimler; başkası kabul edilmez. */
+const IZINLI_UZANTILAR = new Set([
+  '.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif', '.tif', '.tiff', '.heic',
+  '.doc', '.docx', '.xls', '.xlsx', '.txt', '.dwg', '.dxf', '.zip', '.rar',
+]);
+
+const EN_BUYUK_DOSYA = 25 * 1024 * 1024;
+
+const yukle = multer({
+  storage: multer.diskStorage({
+    destination: (_i, _d, gec) => gec(null, EKLER_KLASORU),
+    // Dosya adı kullanıcıdan gelmez: disk adı üretilir, özgün ad veritabanında durur.
+    filename: (_i, dosya, gec) => gec(null, yeniId() + extname(dosya.originalname).toLowerCase()),
+  }),
+  limits: { fileSize: EN_BUYUK_DOSYA, files: 10 },
+  fileFilter: (_i, dosya, gec) => {
+    if (!IZINLI_UZANTILAR.has(extname(dosya.originalname).toLowerCase())) {
+      gec(new Error('Bu dosya türü kabul edilmiyor.'));
+      return;
+    }
+    gec(null, true);
+  },
+});
+
+/**
+ * Tarayıcılar dosya adını latin-1 olarak gönderir; Türkçe karakterlerin
+ * bozulmaması için utf-8'e çeviriyoruz.
+ */
+const adiDuzelt = (ad: string): string => Buffer.from(ad, 'latin1').toString('utf8');
+
+app.post(
+  '/api/evraklar/:id/ekler',
+  korumali,
+  (istek: Istek, yanit, sonraki) => {
+    yukle.array('dosyalar', 10)(istek, yanit, (hata: unknown) => {
+      if (hata) {
+        const mesaj =
+          hata instanceof Error && hata.message.includes('File too large')
+            ? 'Dosya 25 MB sınırını aşıyor.'
+            : hata instanceof Error
+              ? hata.message
+              : 'Dosya yüklenemedi.';
+        yanit.status(400).json({ hata: mesaj });
+        return;
+      }
+      sonraki();
+    });
+  },
+  (istek: Istek, yanit) => {
+    const id = String(istek.params.id);
+    const dosyalar = (istek.files as Express.Multer.File[] | undefined) ?? [];
+
+    if (!db.prepare('SELECT durum FROM evraklar WHERE id = ?').get(id)) {
+      for (const d of dosyalar) rmSync(d.path, { force: true });
+      yanit.status(404).json({ hata: 'Evrak bulunamadı.' });
+      return;
+    }
+    if (dosyalar.length === 0) {
+      yanit.status(400).json({ hata: 'Dosya seçilmedi.' });
+      return;
+    }
+
+    const simdi = new Date().toISOString();
+    const durum = (db.prepare('SELECT durum FROM evraklar WHERE id = ?').get(id) as {
+      durum: string;
+    }).durum;
+
+    const ekle = db.prepare(
+      `INSERT INTO ekler (id, evrak_id, ad, dosya, tur, boyut, yukleyen, tarih)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const islemYaz = db.prepare(
+      'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
+    );
+
+    const adlar: string[] = [];
+    db.transaction(() => {
+      for (const d of dosyalar) {
+        const ad = adiDuzelt(d.originalname);
+        adlar.push(ad);
+        ekle.run(yeniId(), id, ad, d.filename, d.mimetype, d.size, istek.kullanici!.ad, simdi);
+      }
+      islemYaz.run(
+        yeniId(),
+        id,
+        simdi,
+        durum,
+        `Dosya eklendi: ${adlar.join(', ')}`,
+        istek.kullanici!.ad,
+      );
+    })();
+
+    yanit.status(201).json(tekEvrak(id));
+  },
+);
+
+app.get('/api/ekler/:id', korumali, (istek, yanit) => {
+  const ek = db.prepare('SELECT * FROM ekler WHERE id = ?').get(String(istek.params.id)) as
+    | EkSatir
+    | undefined;
+  if (!ek) {
+    yanit.status(404).json({ hata: 'Ek bulunamadı.' });
+    return;
+  }
+  const yol = join(EKLER_KLASORU, ek.dosya);
+  if (!existsSync(yol)) {
+    yanit.status(410).json({ hata: 'Dosya diskte bulunamadı.' });
+    return;
+  }
+  // inline: PDF ve görseller tarayıcıda açılsın, indirme kullanıcıya kalsın.
+  yanit.type(ek.tur || 'application/octet-stream');
+  yanit.setHeader(
+    'Content-Disposition',
+    `inline; filename*=UTF-8''${encodeURIComponent(ek.ad)}`,
+  );
+  yanit.sendFile(yol);
+});
+
+app.delete('/api/ekler/:id', korumali, (istek: Istek, yanit) => {
+  const ek = db.prepare('SELECT * FROM ekler WHERE id = ?').get(String(istek.params.id)) as
+    | EkSatir
+    | undefined;
+  if (!ek) {
+    yanit.status(404).json({ hata: 'Ek bulunamadı.' });
+    return;
+  }
+  // Eki yükleyen kişi veya müdür silebilir.
+  if (istek.kullanici!.rol !== 'mudur' && ek.yukleyen !== istek.kullanici!.ad) {
+    yanit.status(403).json({ hata: 'Bu eki yalnızca yükleyen kişi veya müdür silebilir.' });
+    return;
+  }
+  const simdi = new Date().toISOString();
+  const durum = (db.prepare('SELECT durum FROM evraklar WHERE id = ?').get(ek.evrak_id) as {
+    durum: string;
+  }).durum;
+  db.prepare('DELETE FROM ekler WHERE id = ?').run(ek.id);
+  rmSync(join(EKLER_KLASORU, ek.dosya), { force: true });
+  db.prepare(
+    'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(yeniId(), ek.evrak_id, simdi, durum, `Dosya silindi: ${ek.ad}`, istek.kullanici!.ad);
+  yanit.json(tekEvrak(ek.evrak_id));
+});
 
 /* ------------------------------------------------------------------ */
 /* Derlenmiş arayüz                                                    */

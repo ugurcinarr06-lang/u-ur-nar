@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { TURLER, turHedefGun } from '../data';
-import type { Evrak, Tur } from '../types';
+import type { Evrak, Taslak, Tur } from '../types';
 import { bugun } from '../utils';
 
 interface Props {
@@ -8,7 +8,7 @@ interface Props {
   evrak: Evrak | null;
   sonrakiNo: string;
   onKapat: () => void;
-  onKaydet: (taslak: Omit<Evrak, 'id' | 'gecmis'>) => void;
+  onKaydet: (taslak: Taslak) => void;
 }
 
 const alan = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm';

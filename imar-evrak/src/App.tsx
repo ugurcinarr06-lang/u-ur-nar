@@ -8,16 +8,9 @@ import { Kullanicilar } from './components/Kullanicilar';
 import { Ozet } from './components/Ozet';
 import { KAPALI_DURUMLAR } from './data';
 import { yedekCoz, yedekOlustur } from './storage';
-import type { Durum, Evrak, Filtre } from './types';
+import type { Durum, Evrak, Filtre, Taslak } from './types';
 import { csvOlustur, dosyaIndir, gecikmisMi, sonrakiEvrakNo } from './utils';
-import {
-  baslangicBelirle,
-  cikisYap,
-  type Baslangic,
-  type Depo,
-  type Oturum,
-  type Taslak,
-} from './veri/depo';
+import { baslangicBelirle, cikisYap, type Baslangic, type Depo, type Oturum } from './veri/depo';
 
 const BOS_FILTRE: Filtre = {
   arama: '',
@@ -147,6 +140,20 @@ export default function App() {
       await depo.sil(id);
       setEvraklar((ö) => ö.filter((x) => x.id !== id));
       setSeciliId(null);
+    });
+
+  const ekYukle = (evrakId: string, dosyalar: File[]) =>
+    void calistir(async () => {
+      if (!depo?.ekYukle) return;
+      const guncel = await depo.ekYukle(evrakId, dosyalar);
+      setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
+    });
+
+  const ekSil = (ekId: string) =>
+    void calistir(async () => {
+      if (!depo?.ekSil || !confirm('Bu dosya kalıcı olarak silinsin mi?')) return;
+      const guncel = await depo.ekSil(ekId);
+      setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
     });
 
   const cikis = () =>
@@ -337,6 +344,10 @@ export default function App() {
               onDuzenle={() => setForm(secili)}
               onSil={() => sil(secili.id)}
               onIslem={(durum, not) => islemEkle(secili.id, durum, not)}
+              onEkYukle={depo?.ekYukle ? (dosyalar) => ekYukle(secili.id, dosyalar) : undefined}
+              onEkSil={depo?.ekSil ? ekSil : undefined}
+              ekAdresi={depo?.ekAdresi}
+              ekSilinebilir={(ek) => oturum?.rol === 'mudur' || ek.yukleyen === oturum?.ad}
             />
           </div>
         </div>

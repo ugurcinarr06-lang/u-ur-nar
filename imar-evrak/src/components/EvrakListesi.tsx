@@ -44,7 +44,14 @@ export function EvrakListesi({ evraklar, seciliId, onSec }: Props) {
               <td className="whitespace-nowrap px-4 py-3 font-mono font-medium">{e.no}</td>
               <td className="px-4 py-3">
                 <div className="font-medium text-slate-900">{e.konu}</div>
-                <div className="text-xs text-slate-500">{turAdi(e.tur)}</div>
+                <div className="text-xs text-slate-500">
+                  {turAdi(e.tur)}
+                  {e.ekler.length > 0 && (
+                    <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">
+                      {e.ekler.length} ek
+                    </span>
+                  )}
+                </div>
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-slate-700">
                 {e.tasinmaz.mahalle} mah.

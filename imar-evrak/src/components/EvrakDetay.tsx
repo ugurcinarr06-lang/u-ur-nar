@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { DURUMLAR, turAdi } from '../data';
-import type { Durum, Evrak } from '../types';
-import { gunFarki, tarihGoster, tarihSaatGoster } from '../utils';
+import type { Durum, Ek, Evrak } from '../types';
+import { boyutGoster, gunFarki, tarihGoster, tarihSaatGoster } from '../utils';
 import { DurumRozeti } from './Rozet';
 
 interface Props {
@@ -13,6 +13,12 @@ interface Props {
   silinebilir: boolean;
   /** Durum değişikliği veya sadece not ekleme. */
   onIslem: (durum: Durum, not: string) => void;
+  /** Ek yükleme yalnızca sunucu kipinde vardır; yoksa bölüm bilgi verir. */
+  onEkYukle?: (dosyalar: File[]) => void;
+  onEkSil?: (ekId: string) => void;
+  ekAdresi?: (ekId: string) => string;
+  /** Eki silme yetkisi (yükleyen kişi veya müdür). */
+  ekSilinebilir?: (ek: Ek) => boolean;
 }
 
 function Satir({ ad, deger }: { ad: string; deger: string }) {
@@ -24,9 +30,21 @@ function Satir({ ad, deger }: { ad: string; deger: string }) {
   );
 }
 
-export function EvrakDetay({ evrak, onKapat, onDuzenle, onSil, onIslem, silinebilir }: Props) {
+export function EvrakDetay({
+  evrak,
+  onKapat,
+  onDuzenle,
+  onSil,
+  onIslem,
+  silinebilir,
+  onEkYukle,
+  onEkSil,
+  ekAdresi,
+  ekSilinebilir,
+}: Props) {
   const [durum, setDurum] = useState<Durum>(evrak.durum);
   const [not, setNot] = useState('');
+  const dosyaGirdisi = useRef<HTMLInputElement>(null);
 
   const isle = () => {
     if (durum === evrak.durum && !not.trim()) return;
@@ -77,6 +95,77 @@ export function EvrakDetay({ evrak, onKapat, onDuzenle, onSil, onIslem, silinebi
             <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{evrak.aciklama}</p>
           </div>
         )}
+
+        <div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs uppercase tracking-wide text-slate-500">
+              Ekler{evrak.ekler.length > 0 && ` (${evrak.ekler.length})`}
+            </h3>
+            {onEkYukle && (
+              <button
+                type="button"
+                onClick={() => dosyaGirdisi.current?.click()}
+                className="text-xs font-medium text-slate-700 underline"
+              >
+                dosya ekle
+              </button>
+            )}
+          </div>
+
+          {onEkYukle ? (
+            <>
+              <input
+                ref={dosyaGirdisi}
+                type="file"
+                multiple
+                hidden
+                onChange={(e) => {
+                  const secilen = Array.from(e.target.files ?? []);
+                  if (secilen.length) onEkYukle(secilen);
+                  e.target.value = '';
+                }}
+              />
+              {evrak.ekler.length === 0 ? (
+                <p className="mt-2 text-sm text-slate-500">
+                  Dilekçe taraması, proje pdf'i veya tutanak fotoğrafı ekleyebilirsiniz.
+                </p>
+              ) : (
+                <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200">
+                  {evrak.ekler.map((ek) => (
+                    <li key={ek.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <a
+                        href={ekAdresi?.(ek.id)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="min-w-0 flex-1"
+                      >
+                        <span className="block truncate text-sm font-medium text-slate-900 underline decoration-slate-300 underline-offset-2">
+                          {ek.ad}
+                        </span>
+                        <span className="block text-xs text-slate-500">
+                          {boyutGoster(ek.boyut)} · {ek.yukleyen} · {tarihGoster(ek.tarih)}
+                        </span>
+                      </a>
+                      {onEkSil && (ekSilinebilir?.(ek) ?? true) && (
+                        <button
+                          type="button"
+                          onClick={() => onEkSil(ek.id)}
+                          className="shrink-0 text-xs font-medium text-rose-700 hover:underline"
+                        >
+                          sil
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
+            <p className="mt-2 text-sm text-slate-500">
+              Dosya ekleri yalnızca ortak sunucu kipinde saklanabiliyor.
+            </p>
+          )}
+        </div>
 
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <h3 className="text-sm font-medium">İşlem yap</h3>

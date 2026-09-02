@@ -10,6 +10,10 @@ import { sifreOzeti } from './auth.js';
 const DOSYA = resolve(process.env.IMAR_DB ?? 'veri/imar-evrak.db');
 mkdirSync(dirname(DOSYA), { recursive: true });
 
+/** Evrak ekleri veritabanının yanındaki "ekler" klasöründe tutulur. */
+export const EKLER_KLASORU = resolve(dirname(DOSYA), 'ekler');
+mkdirSync(EKLER_KLASORU, { recursive: true });
+
 export const db = new Database(DOSYA);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
@@ -59,6 +63,18 @@ db.exec(`
     kullanici TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS ekler (
+    id        TEXT PRIMARY KEY,
+    evrak_id  TEXT NOT NULL REFERENCES evraklar(id) ON DELETE CASCADE,
+    ad        TEXT NOT NULL,
+    dosya     TEXT NOT NULL,
+    tur       TEXT NOT NULL DEFAULT '',
+    boyut     INTEGER NOT NULL,
+    yukleyen  TEXT NOT NULL,
+    tarih     TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS ekler_evrak ON ekler(evrak_id, tarih);
   CREATE INDEX IF NOT EXISTS islemler_evrak ON islemler(evrak_id, tarih);
   CREATE INDEX IF NOT EXISTS evraklar_parsel ON evraklar(ada, parsel);
 `);

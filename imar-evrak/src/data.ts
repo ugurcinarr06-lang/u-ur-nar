@@ -42,10 +42,9 @@ export function ornekVeri(): Evrak[] {
     return d.toISOString().slice(0, 10);
   };
 
-  const kayit = (
-    e: Omit<Evrak, 'gecmis'> & { gecmis?: Evrak['gecmis'] },
-  ): Evrak => ({
+  const kayit = (e: Omit<Evrak, 'gecmis' | 'ekler'> & { gecmis?: Evrak['gecmis'] }): Evrak => ({
     ...e,
+    ekler: [],
     gecmis: e.gecmis ?? [
       {
         id: `${e.id}-1`,

@@ -96,6 +96,13 @@ export function csvOlustur(evraklar: Evrak[]): string {
   return `﻿${basliklar.map(alan).join(';')}\n${satirlar.join('\n')}`;
 }
 
+/** 245760 → "240 KB" */
+export function boyutGoster(bayt: number): string {
+  if (bayt < 1024) return `${bayt} B`;
+  if (bayt < 1024 * 1024) return `${Math.round(bayt / 1024)} KB`;
+  return `${(bayt / 1024 / 1024).toFixed(1)} MB`;
+}
+
 interface KaydetIstegi {
   filename: string;
   data: string;

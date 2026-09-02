@@ -10,6 +10,9 @@ Belediye imar müdürlüğüne gelen evrakların (ruhsat, iskân, imar durumu,
 | **Sunucu** | `npm run basla` ile sunucu çalışıyorsa | ortak SQLite dosyası | kullanıcı adı + şifre |
 | **Yerel** | sunucu yoksa (tek dosyalık sürüm, Artifact, dosyadan açma) | tarayıcı `localStorage` | yok |
 
+Dosya ekleri yalnızca sunucu kipinde saklanır; yerel kipte ekler bölümü
+bunu belirtir.
+
 Açılışta `/api/ben` denenir; cevap gelirse ortak veritabanı, gelmezse
 tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
 
@@ -26,6 +29,10 @@ tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
   durum–tür–personel filtreleri, "sadece süresi geçenler".
 - **Özet kartları:** toplam, açık dosya, eksik evrak, süresi geçen
   (tıklayınca ilgili filtre uygulanır).
+- **Dosya ekleri:** evraka dilekçe taraması, proje pdf'i, tutanak fotoğrafı
+  eklenir (pdf, jpg/png/tiff, doc/docx, xls/xlsx, dwg/dxf, zip; dosya başına
+  25 MB, en çok 10 dosya). Ekleme ve silme işlem geçmişine yazılır; eki
+  yükleyen kişi veya müdür silebilir. **Yalnızca sunucu kipinde.**
 - **Dışa aktarma:** filtrelenmiş listeyi Excel uyumlu CSV olarak indirme,
   JSON yedek alma/geri yükleme, listeyi yazdırma. (Sayfa bir Claude Artifact
   olarak açıldığında indirmeler `downloads` yeteneği üzerinden kullanıcı
@@ -82,6 +89,8 @@ USB ile taşınabilir veya bir iç ağ paylaşımına konabilir.
 | | Memur | Müdür |
 | --- | --- | --- |
 | Evrak açma, düzenleme, işlem/not ekleme | ✓ | ✓ |
+| Dosya ekleme | ✓ | ✓ |
+| Ek silme | yalnızca kendi yüklediğini | tümünü |
 | Evrak silme | — | ✓ |
 | Personel ekleme/silme | — | ✓ |
 | Kendi şifresini değiştirme | ✓ | ✓ |
@@ -90,8 +99,10 @@ Her işlem, yapan kişinin adıyla evrakın geçmişine yazılır.
 
 ## Veri nerede duruyor
 
-**Sunucu kipinde:** `veri/imar-evrak.db` (SQLite). Yedekleme bu dosyayı
-kopyalamaktır; sunucu kapalıyken kopyalamak en temizi. Oturumlar 12 saat
+**Sunucu kipinde:** `veri/imar-evrak.db` (SQLite) ve ekler için
+`veri/ekler/`. Yedekleme **`veri/` klasörünün tamamını** kopyalamaktır;
+sunucu kapalıyken kopyalamak en temizi. Dosyalar diske üretilmiş adlarla
+(`<uuid>.pdf`) yazılır, özgün adları veritabanında durur. Oturumlar 12 saat
 sonra düşer, şifreler scrypt ile özetlenir.
 
 **Yerel kipte:** tarayıcıdaki `localStorage` (`imar-evrak/v1`). Kayıtlar o
@@ -126,14 +137,13 @@ src/
     Ozet.tsx               Özet kartları
     Filtreler.tsx          Arama ve filtre çubuğu
     EvrakListesi.tsx       Tablo
-    EvrakDetay.tsx         Yan panel: bilgiler, işlem yap, geçmiş
+    EvrakDetay.tsx         Yan panel: bilgiler, ekler, işlem yap, geçmiş
     EvrakFormu.tsx         Yeni kayıt / düzenleme formu
     Rozet.tsx              Durum ve gecikme rozetleri
 ```
 
 ## Sonraki adımlar
 
-- Evraka dosya eki (proje pdf'i, dilekçe taraması, tutanak fotoğrafı).
 - Türe göre eksik belge kontrol listesi ve "eksik belge yazısı" çıktısı.
 - Gecikme hatırlatmaları (e-posta/SMS) ve müdüre haftalık özet.
 - Başvuru sahibi için takip numarasıyla salt-okunur durum sorgulama.

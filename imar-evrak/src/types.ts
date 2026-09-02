@@ -41,6 +41,18 @@ export interface Basvuran {
   telefon: string;
 }
 
+/** Evraka bağlı dosya (dilekçe taraması, proje pdf'i, tutanak fotoğrafı…). */
+export interface Ek {
+  id: string;
+  /** Kullanıcının yüklediği özgün dosya adı. */
+  ad: string;
+  /** Bayt cinsinden boyut. */
+  boyut: number;
+  tur: string;
+  yukleyen: string;
+  tarih: string;
+}
+
 export interface Evrak {
   id: string;
   /** İnsan tarafından okunan evrak numarası: 2026/0043 */
@@ -58,7 +70,12 @@ export interface Evrak {
   sorumlu: string;
   aciklama: string;
   gecmis: Islem[];
+  /** Yerel kipte dosya saklanamadığı için her zaman boştur. */
+  ekler: Ek[];
 }
+
+/** Formdan gelen, henüz kaydedilmemiş evrak bilgileri. */
+export type Taslak = Omit<Evrak, 'id' | 'gecmis' | 'ekler'>;
 
 /** Liste ekranındaki filtre durumu. */
 export interface Filtre {
