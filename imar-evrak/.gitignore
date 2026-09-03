@@ -1,9 +1,9 @@
-# SQLite veritabanı ve yedekleri
-veri/
+# SQLite veritabanı ve yedekleri (yalnızca proje kökündeki veri klasörü)
+/veri/
 *.db
 *.db-shm
 *.db-wal
 
 # OCR dil verisi (npm run ocr-kur ile indirilir)
-tessdata/
+/veri/tessdata/
 *.traineddata
