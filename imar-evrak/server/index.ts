@@ -19,6 +19,9 @@ import { saglayiciAdi } from './ai/saglayici.js';
 import { kurallariTara, vatandasaBildir } from './bildirim/kurallar.js';
 import { kuyrugaBak, sonBildirimler, tekrarDene } from './bildirim/kuyruk.js';
 import { kanalDurumu } from './bildirim/saglayici.js';
+import { kurumDurumu } from './kurum/saglayici.js';
+import { evrakSorgulari, kurumSorgusu, sonSorgular } from './kurum/sorgu.js';
+import type { SorguTuru } from './kurum/tipler.js';
 import { belgeAdi } from '../src/belgeler.js';
 import { belgeListesi } from '../src/belgeler.js';
 import type {
@@ -191,6 +194,7 @@ app.post('/api/giris', (istek, yanit) => {
     rol: satir.rol,
     yapayZeka: saglayiciAdi(),
     bildirim: kanalDurumu(),
+    kurum: kurumDurumu(),
   });
 });
 
@@ -207,7 +211,7 @@ app.get('/api/ben', (istek, yanit) => {
     yanit.status(401).json({ hata: 'Oturum yok.' });
     return;
   }
-  yanit.json({ ...k, yapayZeka: saglayiciAdi(), bildirim: kanalDurumu() });
+  yanit.json({ ...k, yapayZeka: saglayiciAdi(), bildirim: kanalDurumu(), kurum: kurumDurumu() });
 });
 
 app.post('/api/sifre', korumali, (istek: Istek, yanit) => {
@@ -850,6 +854,37 @@ app.delete('/api/ekler/:id', korumali, (istek: Istek, yanit) => {
     istek.kullanici!.ad,
   );
   yanit.json(tekEvrak(ek.evrak_id));
+});
+
+/* ------------------------------------------------------------------ */
+/* Kurum sorguları (TAKBİS / YAMBİS)                                   */
+/* ------------------------------------------------------------------ */
+
+app.post('/api/evraklar/:id/kurum-sorgu', korumali, async (istek: Istek, yanit) => {
+  const { tur, belgeNo } = istek.body as { tur?: SorguTuru; belgeNo?: string };
+  if (tur !== 'takbis' && tur !== 'yambis') {
+    yanit.status(400).json({ hata: 'Sorgu türü takbis veya yambis olmalı.' });
+    return;
+  }
+  try {
+    const sonuc = await kurumSorgusu(
+      String(istek.params.id),
+      tur,
+      (belgeNo ?? '').trim(),
+      istek.kullanici!.ad,
+    );
+    yanit.json({ sonuc, evrak: tekEvrak(String(istek.params.id)) });
+  } catch (hata) {
+    yanit.status(400).json({ hata: hata instanceof Error ? hata.message : 'Sorgu yapılamadı.' });
+  }
+});
+
+app.get('/api/evraklar/:id/kurum-sorgu', korumali, (istek, yanit) => {
+  yanit.json(evrakSorgulari(String(istek.params.id)));
+});
+
+app.get('/api/kurum-sorgulari', korumali, sadeceMudur, (_istek, yanit) => {
+  yanit.json(sonSorgular(40));
 });
 
 /* ------------------------------------------------------------------ */

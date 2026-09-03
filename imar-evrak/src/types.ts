@@ -64,8 +64,8 @@ export interface Bulgu {
   seviye: BulguSeviye;
   baslik: string;
   ayrinti?: string;
-  /** Bulgunun kural motorundan mı yapay zekâdan mı geldiği. */
-  kaynak: 'kural' | 'yapay-zeka';
+  /** Bulgunun kaynağı: kural motoru, yapay zekâ veya kurum sorgusu. */
+  kaynak: 'kural' | 'yapay-zeka' | 'kurum';
 }
 
 export type IncelemeDurumu = 'bekliyor' | 'inceleniyor' | 'tamam' | 'hata';

@@ -29,6 +29,21 @@ db.exec(`
     olusturma    TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS kurum_sorgulari (
+    id        TEXT PRIMARY KEY,
+    evrak_id  TEXT NOT NULL,
+    tur       TEXT NOT NULL,
+    girdi     TEXT NOT NULL,
+    durum     TEXT NOT NULL,
+    ozet      TEXT NOT NULL DEFAULT '',
+    hata      TEXT NOT NULL DEFAULT '',
+    ham       TEXT NOT NULL DEFAULT '',
+    kullanici TEXT NOT NULL,
+    tarih     TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS kurum_sorgulari_evrak ON kurum_sorgulari(evrak_id, tarih);
+
   CREATE TABLE IF NOT EXISTS bildirimler (
     id         TEXT PRIMARY KEY,
     anahtar    TEXT NOT NULL UNIQUE,

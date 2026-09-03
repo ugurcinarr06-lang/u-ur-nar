@@ -13,7 +13,14 @@ import { KAPALI_DURUMLAR } from './data';
 import { yedekCoz, yedekOlustur } from './storage';
 import type { Durum, Evrak, Filtre, Taslak } from './types';
 import { csvOlustur, dosyaIndir, gecikmisMi, sonrakiEvrakNo } from './utils';
-import { baslangicBelirle, cikisYap, type Baslangic, type Depo, type Oturum } from './veri/depo';
+import {
+  baslangicBelirle,
+  cikisYap,
+  type Baslangic,
+  type Depo,
+  type KurumSorgusu,
+  type Oturum,
+} from './veri/depo';
 
 const BOS_FILTRE: Filtre = {
   arama: '',
@@ -38,6 +45,8 @@ export default function App() {
   const [yaziId, setYaziId] = useState<string | null>(null);
   /** Alındı belgesi açık olan evrakın kimliği. */
   const [alindiId, setAlindiId] = useState<string | null>(null);
+  /** Seçili evrakın kurum sorgu geçmişi. */
+  const [kurumGecmisi, setKurumGecmisi] = useState<KurumSorgusu[]>([]);
   const [uyari, setUyari] = useState<string | null>(null);
   const dosyaGirdisi = useRef<HTMLInputElement>(null);
 
@@ -191,6 +200,25 @@ export default function App() {
       if (!depo?.belgeKarar) return;
       const guncel = await depo.belgeKarar(evrakId, kod, karar, not);
       setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
+    });
+
+  useEffect(() => {
+    if (!depo?.kurumGecmisi || !seciliId) {
+      setKurumGecmisi([]);
+      return;
+    }
+    depo
+      .kurumGecmisi(seciliId)
+      .then(setKurumGecmisi)
+      .catch(() => setKurumGecmisi([]));
+  }, [depo, seciliId]);
+
+  const kurumSorgula = (evrakId: string, tur: 'takbis' | 'yambis', belgeNo: string) =>
+    void calistir(async () => {
+      if (!depo?.kurumSorgula || !depo.kurumGecmisi) return;
+      const { evrak } = await depo.kurumSorgula(evrakId, tur, belgeNo);
+      setEvraklar((ö) => ö.map((e) => (e.id === evrak.id ? evrak : e)));
+      setKurumGecmisi(await depo.kurumGecmisi(evrakId));
     });
 
   const belgeDogrulama = (
@@ -435,6 +463,12 @@ export default function App() {
                       belgeDogrulama(secili.id, kod, dogrulamaKodu, dogrulandi)
                   : undefined
               }
+              onKurumSorgu={
+                depo?.kurumSorgula
+                  ? (tur, belgeNo) => kurumSorgula(secili.id, tur, belgeNo)
+                  : undefined
+              }
+              kurumGecmisi={kurumGecmisi}
               onIncelemeYenile={depo?.incelemeYenile ? incelemeYenile : undefined}
               onEksikYazi={() => setYaziId(secili.id)}
               onAlindiBelgesi={() => setAlindiId(secili.id)}

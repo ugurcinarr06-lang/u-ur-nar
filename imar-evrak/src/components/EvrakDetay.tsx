@@ -34,6 +34,10 @@ interface Props {
   /** Memurun içerik kararı; sunucu kipinde vardır. */
   onBelgeKarar?: (kod: string, karar: 'uygun' | 'uygunsuz' | '', not: string) => void;
   onBelgeDogrulama?: (kod: string, dogrulamaKodu: string, dogrulandi: boolean) => void;
+  /** TAKBİS/YAMBİS sorgusu — bağlantı açıksa verilir. */
+  onKurumSorgu?: (tur: 'takbis' | 'yambis', belgeNo: string) => void;
+  /** Bu evrak için yapılmış kurum sorguları (en yeni önce). */
+  kurumGecmisi?: { tur: string; durum: string; ozet: string; hata: string; kullanici: string; tarih: string }[];
   onIncelemeYenile?: (ekId: string) => void;
   /** Alındı belgesini açar; yalnızca takip kodu olan kayıtlarda vardır. */
   onAlindiBelgesi?: () => void;
@@ -67,6 +71,8 @@ export function EvrakDetay({
   onBelgeIsaretle,
   onBelgeKarar,
   onBelgeDogrulama,
+  onKurumSorgu,
+  kurumGecmisi,
   onIncelemeYenile,
   onAlindiBelgesi,
   onEksikYazi,
@@ -85,6 +91,12 @@ export function EvrakDetay({
   const zorunlular = tanimlar.filter((b) => b.zorunlu);
   const eksikSayisi = zorunlular.filter((b) => !teslimMi(b.kod)).length;
   const tamam = zorunlular.length - eksikSayisi;
+
+  /** Kontrol listesi maddesini ilgili kurum servisine bağlar. */
+  const KURUM_SERVISI: Record<string, { tur: 'takbis' | 'yambis'; ad: string }> = {
+    tapu: { tur: 'takbis', ad: 'TAKBİS' },
+    muteahhit: { tur: 'yambis', ad: 'YAMBİS' },
+  };
 
   const dosyaSec = (kod: string) => {
     secilenKod.current = kod;
@@ -314,6 +326,35 @@ export function EvrakDetay({
                       elle işaretlendi · {kayit.kullanici}
                       {kayit.tarih ? ` · ${tarihGoster(kayit.tarih)}` : ''}
                     </span>
+                  )}
+
+                  {onKurumSorgu && KURUM_SERVISI[b.kod] && (
+                    <div className="ml-6 mt-1.5 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const servis = KURUM_SERVISI[b.kod];
+                          const no =
+                            servis.tur === 'yambis'
+                              ? (prompt('Müteahhit yetki belgesi numarası:') ?? '').trim()
+                              : '';
+                          if (servis.tur === 'yambis' && !no) return;
+                          onKurumSorgu(servis.tur, no);
+                        }}
+                        className="rounded-lg border border-sky-300 px-2 py-0.5 font-medium text-sky-800 hover:bg-sky-50"
+                      >
+                        {KURUM_SERVISI[b.kod].ad}'ten sorgula
+                      </button>
+                      {(kurumGecmisi ?? [])
+                        .filter((k) => k.tur === KURUM_SERVISI[b.kod].tur)
+                        .slice(0, 1)
+                        .map((k) => (
+                          <span key={k.tarih} className="ml-2 text-slate-600">
+                            {k.durum === 'hata' ? k.hata : k.ozet} · {k.kullanici} ·{' '}
+                            {tarihGoster(k.tarih)}
+                          </span>
+                        ))}
+                    </div>
                   )}
 
                   {onBelgeDogrulama && teslimMi(b.kod) && DOGRULANABILIR.has(b.kod) && (

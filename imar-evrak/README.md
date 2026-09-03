@@ -53,6 +53,11 @@ tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
   teslim alınmayan, uygun bulunmayan, engel çıkan ve karar bekleyen belgeler
   ayrı ayrı sayılır. Listede de rozet olarak görünür (*Karara hazır*,
   *3 eksik belge*, *2 engel*…).
+- **Kurum sorgusu (TAKBİS / YAMBİS):** tapu kayıt örneği ve müteahhit yetki
+  belgesi, kaynağından sorgulanabilir; sonuç evrak kaydıyla karşılaştırılır
+  (ada/parsel tutmuyorsa engel, başvuran malik değilse uyarı, yetki belgesi
+  süresi dolmuşsa engel). Bağlantı **kapalı gelir**; kurum protokolü
+  tamamlandığında yalnızca ayar girilir — bkz. `docs/entegrasyon.md`.
 - **Parsel geçmişi:** evrak detayında aynı ada/parsele ait diğer başvurular
   listelenir ("bu parselde 2026'da ruhsat verilmiş, sonra şikâyet gelmiş").
   Tıklayınca o kayda geçilir; "listede göster" ile parselin tüm evrakları
@@ -247,6 +252,33 @@ geldiği için NetGSM, İletimerkezi gibi sağlayıcılara kod değiştirmeden
 bağlanır. Kanal kapalıyken bildirimler yine üretilir ve "kanal-kapali" olarak
 kaydedilir; kanal açılınca müdür ekranından tekrar denenebilir.
 
+## Kurum sorguları (TAKBİS / YAMBİS)
+
+Belge metnini okumak bir belgenin **gerçekliğini** kanıtlamaz; asıl doğrulama
+kaynağından yapılır. Uygulamada bunun için hazır bir katman vardır:
+
+- Kontrol listesindeki **Tapu kayıt örneği** satırında "TAKBİS'ten sorgula",
+  **Müteahhit yetki belgesi** satırında "YAMBİS'ten sorgula" düğmesi çıkar.
+- Sonuç evrak kaydıyla karşılaştırılır ve bulgu üretilir; engel yoksa belge
+  "kaynağından doğrulandı" olarak işaretlenir. **Karar yine memurundur.**
+- Her sorgu denetim kaydına yazılır: kim, ne zaman, hangi girdiyle, sonuç ve
+  ham yanıt (`kurum_sorgulari` tablosu). Kaydı müdür `/api/kurum-sorgulari`
+  ile görür.
+- Kurumdan gelen malik bilgisi vatandaş takip ekranına **çıkmaz**.
+
+| Değişken | Varsayılan | Açıklama |
+| --- | --- | --- |
+| `IMAR_TAKBIS` / `IMAR_YAMBIS` | `kapali` | `http` \| `deneme` \| `kapali` |
+| `IMAR_*_URL`, `_YONTEM`, `_BASLIKLAR`, `_GOVDE` | — | Servis adresi ve istek şablonu |
+| `IMAR_*_ALAN_*` | — | Yanıttaki alan yolları (`veri.tasinmaz.adaNo` gibi) |
+| `IMAR_IL`, `IMAR_ILCE` | — | Sorguya eklenen sabit bilgiler |
+| `IMAR_KURUM_ZAMAN_ASIMI` | `30000` | Zaman aşımı (ms) |
+
+Gerçek istek/yanıt şekilleri **varsayılmamıştır**: alan eşlemesi
+yapılandırmadan okunur, böylece kurum hangi biçimde dönerse dönsün kod
+değişmez. Ayrıntı, kuruma sorulacaklar ve KVKK notları için
+[`docs/entegrasyon.md`](docs/entegrasyon.md).
+
 ## Vatandaş takip ekranı
 
 Amaç, "benim dosya ne oldu" telefonlarını azaltmak. Vatandaş hesap açmaz,
@@ -315,6 +347,10 @@ yalnızca yerel kipte açıktır).
 index.html                 Uygulama girişi
 server/
   index.ts                 Express API + derlenmiş arayüzü sunar
+  kurum/
+    saglayici.ts           TAKBİS/YAMBİS için yapılandırmalı HTTP adaptörü
+    sorgu.ts               Sorgu, karşılaştırma, denetim kaydı
+    tipler.ts              Normalleştirilmiş sonuç tipleri
   bildirim/
     kurallar.ts            Süre, eksik belge ve sonuç bildirim kuralları
     kuyruk.ts              Bildirim kuyruğu, tekrar deneme
@@ -366,5 +402,8 @@ kurumsal entegrasyon iznine bağlıdır.
 
 ## Sonraki adımlar
 
-- TAKBİS/YAMBİS entegrasyonu (kurumsal izin gerektirir).
+- TAKBİS/YAMBİS bağlantısının açılması (kurumsal izin gerektirir; kod hazır,
+  bkz. `docs/entegrasyon.md`).
+- SOAP/XML dönen kurum servisleri için adaptöre XML desteği (gerçek şema
+  geldiğinde).
 - Eksik belge istendiğinde süre sayacının durması.
