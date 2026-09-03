@@ -42,6 +42,8 @@ makinede çalıştırılıp `node_modules/` ile `veri/tessdata/` kopyalanır.
 PORT=3200
 IMAR_DB=/opt/imar-evrak/veri/imar-evrak.db
 IMAR_TAKIP_ADRESI=https://belediye.gov.tr/imar-takip
+TRUST_PROXY=1          # nginx arkasında istemci IP'si ve Secure çerez için
+IMAR_HTTPS=1           # çerezi her zaman Secure yap
 
 # İlk açılışta admin şifresi (kurulumdan sonra bu satır silinebilir)
 IMAR_ADMIN_SIFRE=güçlü-bir-şifre
@@ -225,8 +227,10 @@ hatalı gönderimler orada tekrar denenebilir.
 
 ## 10. Bilinen sınırlar
 
-- **HTTPS zorunlu değil.** Oturum çerezi `Secure` bayrağı taşımaz; dışarı
-  açılan kurulumda TLS'i nginx üzerinde zorunlu kılın (`return 301 https://`).
+- **HTTPS'i siz zorunlu kılmalısınız.** Oturum çerezi, istek HTTPS üzerinden
+  geldiğinde `Secure` bayrağı alır (ters vekil arkasında `TRUST_PROXY=1`
+  gerekir; `IMAR_HTTPS=1` ile her zaman zorlanır). Yine de nginx'te
+  `return 301 https://` ile düz HTTP'yi kapatın.
 - **Disk kotası yok.** Ek başına 25 MB sınırı vardır, toplam boyut
   sınırlanmaz; `veri/ekler` büyümesini izleyin.
 - **Personel uçlarında hız sınırı yok.** İç ağ varsayımıyla; dışarı

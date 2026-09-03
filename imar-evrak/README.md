@@ -111,6 +111,7 @@ Uygulamayı ağdaki bir bilgisayarda çalıştırırsan diğerleri
 | `IMAR_DB` | `veri/imar-evrak.db` | Veritabanı dosyası (ağ sürücüsü de olabilir) |
 | `IMAR_ADMIN_SIFRE` | rastgele | İlk kurulumdaki admin şifresi |
 | `TRUST_PROXY` | — | Ters vekil arkasındaysa `1` (istemci IP'si için) |
+| `IMAR_HTTPS` | — | `1` ise oturum çerezi her zaman `Secure` işaretlenir |
 
 ### Geliştirme
 

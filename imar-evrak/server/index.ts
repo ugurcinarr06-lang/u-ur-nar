@@ -122,6 +122,14 @@ app.use(express.json({ limit: '1mb' }));
 /* Oturum                                                              */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Çerezin Secure bayrağı: HTTPS üzerinden gelen isteklerde konur. Ters vekil
+ * arkasında TRUST_PROXY ayarlıysa X-Forwarded-Proto okunur; IMAR_HTTPS=1 ile
+ * her zaman zorlanabilir.
+ */
+const guvenliMi = (istek: Request): boolean =>
+  process.env.IMAR_HTTPS === '1' || istek.secure;
+
 function tokenOku(istek: Request): string | null {
   const ham = istek.headers.cookie;
   if (!ham) return null;
@@ -194,7 +202,8 @@ app.post('/api/giris', (istek, yanit) => {
   );
   yanit.setHeader(
     'Set-Cookie',
-    `${COOKIE_ADI}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${OTURUM_SURESI_MS / 1000}`,
+    `${COOKIE_ADI}=${token}; HttpOnly; SameSite=Lax; Path=/;` +
+      `${guvenliMi(istek) ? ' Secure;' : ''} Max-Age=${OTURUM_SURESI_MS / 1000}`,
   );
   yanit.json({
     id: satir.id,
@@ -210,7 +219,10 @@ app.post('/api/giris', (istek, yanit) => {
 app.post('/api/cikis', (istek, yanit) => {
   const token = tokenOku(istek);
   if (token) db.prepare('DELETE FROM oturumlar WHERE token = ?').run(token);
-  yanit.setHeader('Set-Cookie', `${COOKIE_ADI}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`);
+  yanit.setHeader(
+    'Set-Cookie',
+    `${COOKIE_ADI}=; HttpOnly; SameSite=Lax; Path=/;${guvenliMi(istek) ? ' Secure;' : ''} Max-Age=0`,
+  );
   yanit.json({ tamam: true });
 });
 
@@ -390,11 +402,24 @@ function grupla<T extends { evrak_id: string }>(satirlar: T[]): Map<string, T[]>
   return harita;
 }
 
+/** İstemciden gelen durum/tür değerleri sabit listelerle sınırlanır. */
+const DURUMLAR: Durum[] = ['yeni', 'incelemede', 'eksik', 'onaylandi', 'reddedildi', 'arsiv'];
+const TURLER: Tur[] = [
+  'ruhsat',
+  'iskan',
+  'imar-durumu',
+  'kot-kesit',
+  'aplikasyon',
+  'yapi-kayit',
+  'sikayet',
+  'diger',
+];
+
 const evrakAlanlari = (e: Partial<Evrak>) => ({
   no: e.no ?? '',
   konu: e.konu ?? '',
-  tur: e.tur ?? 'diger',
-  durum: e.durum ?? 'yeni',
+  tur: e.tur && TURLER.includes(e.tur) ? e.tur : 'diger',
+  durum: e.durum && DURUMLAR.includes(e.durum) ? e.durum : 'yeni',
   gelis_tarihi: e.gelisTarihi ?? new Date().toISOString().slice(0, 10),
   hedef_gun: e.hedefGun ?? 30,
   basvuran_ad: e.basvuran?.ad ?? '',
@@ -477,8 +502,8 @@ app.put('/api/evraklar/:id', korumali, (istek: Istek, yanit) => {
 app.post('/api/evraklar/:id/islemler', korumali, (istek: Istek, yanit) => {
   const id = String(istek.params.id);
   const { durum, not } = istek.body as { durum?: Durum; not?: string };
-  if (!durum) {
-    yanit.status(400).json({ hata: 'Durum zorunlu.' });
+  if (!durum || !DURUMLAR.includes(durum)) {
+    yanit.status(400).json({ hata: 'Geçerli bir durum gerekli.' });
     return;
   }
   if (!db.prepare('SELECT 1 FROM evraklar WHERE id = ?').get(id)) {
@@ -604,11 +629,39 @@ app.put('/api/evraklar/:id/belgeler/dogrulama', korumali, (istek: Istek, yanit) 
 /* Evrak ekleri                                                        */
 /* ------------------------------------------------------------------ */
 
-/** İmar dosyalarında karşılaşılan biçimler; başkası kabul edilmez. */
-const IZINLI_UZANTILAR = new Set([
-  '.pdf', '.jpg', '.jpeg', '.png', '.webp', '.gif', '.tif', '.tiff', '.heic',
-  '.doc', '.docx', '.xls', '.xlsx', '.txt', '.dwg', '.dxf', '.zip', '.rar',
-]);
+/**
+ * İmar dosyalarında karşılaşılan biçimler; başkası kabul edilmez.
+ * İçerik türü uzantıdan belirlenir — istemcinin bildirdiği tür kullanılmaz,
+ * yoksa ".txt" adıyla "text/html" gönderilip tarayıcıda çalıştırılabilirdi.
+ */
+const IZINLI_TURLER: Record<string, { tur: string; onizle: boolean }> = {
+  '.pdf': { tur: 'application/pdf', onizle: true },
+  '.jpg': { tur: 'image/jpeg', onizle: true },
+  '.jpeg': { tur: 'image/jpeg', onizle: true },
+  '.png': { tur: 'image/png', onizle: true },
+  '.webp': { tur: 'image/webp', onizle: true },
+  '.gif': { tur: 'image/gif', onizle: true },
+  '.tif': { tur: 'image/tiff', onizle: false },
+  '.tiff': { tur: 'image/tiff', onizle: false },
+  '.heic': { tur: 'image/heic', onizle: false },
+  '.txt': { tur: 'text/plain; charset=utf-8', onizle: true },
+  '.doc': { tur: 'application/msword', onizle: false },
+  '.docx': {
+    tur: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    onizle: false,
+  },
+  '.xls': { tur: 'application/vnd.ms-excel', onizle: false },
+  '.xlsx': {
+    tur: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    onizle: false,
+  },
+  '.dwg': { tur: 'application/acad', onizle: false },
+  '.dxf': { tur: 'image/vnd.dxf', onizle: false },
+  '.zip': { tur: 'application/zip', onizle: false },
+  '.rar': { tur: 'application/vnd.rar', onizle: false },
+};
+
+const IZINLI_UZANTILAR = new Set(Object.keys(IZINLI_TURLER));
 
 const EN_BUYUK_DOSYA = 25 * 1024 * 1024;
 
@@ -802,11 +855,18 @@ app.get('/api/ekler/:id', korumali, (istek, yanit) => {
     yanit.status(410).json({ hata: 'Dosya diskte bulunamadı.' });
     return;
   }
-  // inline: PDF ve görseller tarayıcıda açılsın, indirme kullanıcıya kalsın.
-  yanit.type(ek.tur || 'application/octet-stream');
+  // İçerik türü diskteki uzantıdan belirlenir; yüklerken istemcinin bildirdiği
+  // tür kullanılmaz. Yalnızca güvenle önizlenebilen biçimler tarayıcıda açılır,
+  // kalanlar indirilir. nosniff, tarayıcının türü tahmin etmesini engeller.
+  const bicim = IZINLI_TURLER[extname(ek.dosya).toLowerCase()] ?? {
+    tur: 'application/octet-stream',
+    onizle: false,
+  };
+  yanit.setHeader('Content-Type', bicim.tur);
+  yanit.setHeader('X-Content-Type-Options', 'nosniff');
   yanit.setHeader(
     'Content-Disposition',
-    `inline; filename*=UTF-8''${encodeURIComponent(ek.ad)}`,
+    `${bicim.onizle ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(ek.ad)}`,
   );
   yanit.sendFile(yol);
 });
