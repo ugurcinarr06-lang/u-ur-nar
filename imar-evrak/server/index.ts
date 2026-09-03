@@ -69,6 +69,7 @@ interface EvrakSatir {
 interface EkSatir {
   id: string;
   evrak_id: string;
+  yukleyen_id: string;
   ad: string;
   dosya: string;
   belge_kodu: string;
@@ -728,8 +729,8 @@ app.post(
     const belgeKodu = String((istek.body as { belgeKodu?: string }).belgeKodu ?? '').trim();
 
     const ekle = db.prepare(
-      `INSERT INTO ekler (id, evrak_id, ad, dosya, belge_kodu, hash, tur, boyut, yukleyen, tarih)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ekler (id, evrak_id, ad, dosya, belge_kodu, hash, tur, boyut, yukleyen, yukleyen_id, tarih)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const belgeIsaretle = db.prepare(
       `INSERT INTO belgeler (evrak_id, kod, teslim, kullanici, tarih)
@@ -761,6 +762,7 @@ app.post(
           d.mimetype,
           d.size,
           istek.kullanici!.ad,
+          istek.kullanici!.id,
           simdi,
         );
       }
@@ -879,8 +881,13 @@ app.delete('/api/ekler/:id', korumali, (istek: Istek, yanit) => {
     yanit.status(404).json({ hata: 'Ek bulunamadı.' });
     return;
   }
-  // Eki yükleyen kişi veya müdür silebilir.
-  if (istek.kullanici!.rol !== 'mudur' && ek.yukleyen !== istek.kullanici!.ad) {
+  // Eki yükleyen kişi veya müdür silebilir. Karşılaştırma kullanıcı kimliğiyle
+  // yapılır; ad benzersiz değildir, aynı adla açılan hesap yetki almamalı.
+  // yukleyen_id'si olmayan eski kayıtlarda ada düşülür.
+  const yukleyenKendisi = ek.yukleyen_id
+    ? ek.yukleyen_id === istek.kullanici!.id
+    : ek.yukleyen === istek.kullanici!.ad;
+  if (istek.kullanici!.rol !== 'mudur' && !yukleyenKendisi) {
     yanit.status(403).json({ hata: 'Bu eki yalnızca yükleyen kişi veya müdür silebilir.' });
     return;
   }

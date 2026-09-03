@@ -55,16 +55,21 @@ const metin = (deger: unknown): string | undefined => {
   return String(deger);
 };
 
-/** Şablondaki {{alan}} yerlerine girdi değerlerini koyar. */
-function sablonDoldur(sablon: string, g: SorguGirdisi): string {
+/**
+ * Şablondaki {{alan}} yerlerine girdi değerlerini koyar.
+ * Gövde şablonunda JSON kaçışı, adres şablonunda yüzde kodlaması uygulanır —
+ * aksi hâlde ada/parsel alanına yazılan bir değer adrese parametre
+ * ekleyebilirdi.
+ */
+function sablonDoldur(sablon: string, g: SorguGirdisi, adres = false): string {
   return sablon.replace(/\{\{(\w+)\}\}/g, (_, ad: string) => {
     const deger = (g as Record<string, string | undefined>)[ad] ?? '';
-    return JSON.stringify(deger).slice(1, -1);
+    return adres ? encodeURIComponent(deger) : JSON.stringify(deger).slice(1, -1);
   });
 }
 
 async function httpIstek(onek: string, g: SorguGirdisi): Promise<unknown> {
-  const url = sablonDoldur(ortam(`${onek}_URL`), g);
+  const url = sablonDoldur(ortam(`${onek}_URL`), g, true);
   if (!url) throw new Error(`${onek}_URL tanımlı değil.`);
 
   const yontem = ortam(`${onek}_YONTEM`, 'POST').toUpperCase();

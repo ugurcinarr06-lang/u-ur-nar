@@ -107,6 +107,7 @@ db.exec(`
     tur       TEXT NOT NULL DEFAULT '',
     boyut     INTEGER NOT NULL,
     yukleyen  TEXT NOT NULL,
+    yukleyen_id TEXT NOT NULL DEFAULT '',
     tarih     TEXT NOT NULL
   );
 
@@ -150,6 +151,9 @@ function gocleriUygula(): void {
   }
   if (!sutunlar.some((s) => s.name === 'hash')) {
     db.exec("ALTER TABLE ekler ADD COLUMN hash TEXT NOT NULL DEFAULT ''");
+  }
+  if (!sutunlar.some((s) => s.name === 'yukleyen_id')) {
+    db.exec("ALTER TABLE ekler ADD COLUMN yukleyen_id TEXT NOT NULL DEFAULT ''");
   }
 
   const kullaniciSutunlari = db.prepare('PRAGMA table_info(kullanicilar)').all() as {

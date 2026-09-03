@@ -211,6 +211,11 @@ arayüz sonucu kendiliğinden tazeler. Bir belgeyi yeniden incelemek için dosya
 satırındaki **yeniden incele** kullanılır (model sonradan açıldığında da işe
 yarar).
 
+**Bir uyarı daha:** belge metni modele olduğu gibi verilir. Kötü niyetle
+hazırlanmış bir PDF, model bulgularını yönlendirmeye çalışabilir. Bu yüzden
+model çıktısı **veri olarak** saklanır ve gösterilir; hiçbir bulgu belgeyi
+kendiliğinden uygun yapmaz, karar memurundadır.
+
 **Sınırları açıkça söylemek gerekirse:** bu inceleme belgenin *gerçekliğini*
 doğrulamaz. Tapu kaydının doğruluğu TAKBİS'ten, müteahhit yetkisi YAMBİS'ten,
 e-Devlet çıktıları doğrulama kodundan teyit edilir. Buradaki kontrol, memurun
