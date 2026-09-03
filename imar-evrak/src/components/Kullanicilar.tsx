@@ -1,12 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
+  bildirimTara,
+  bildirimTekrar,
+  bildirimleriGetir,
   kullaniciEkle,
   kullaniciSil,
   kullanicilariGetir,
   sifreDegistir,
+  type Bildirim,
   type Oturum,
   type Rol,
 } from '../veri/depo';
+import { tarihSaatGoster } from '../utils';
 
 const alan = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm';
 const etiket = 'block text-xs font-medium uppercase tracking-wide text-slate-500';
@@ -21,6 +26,8 @@ export function Kullanicilar({ ben, onKapat }: { ben: Oturum; onKapat: () => voi
   const [yeniKullaniciAdi, setYeniKullaniciAdi] = useState('');
   const [yeniRol, setYeniRol] = useState<Rol>('memur');
   const [yeniSifre, setYeniSifre] = useState('');
+  const [yeniEposta, setYeniEposta] = useState('');
+  const [bildirimler, setBildirimler] = useState<Bildirim[]>([]);
 
   const [eskiSifre, setEskiSifre] = useState('');
   const [yeniSifrem, setYeniSifrem] = useState('');
@@ -32,7 +39,32 @@ export function Kullanicilar({ ben, onKapat }: { ben: Oturum; onKapat: () => voi
     kullanicilariGetir()
       .then(setListe)
       .catch((h: unknown) => setHata(h instanceof Error ? h.message : 'Liste alınamadı.'));
+    bildirimleriGetir()
+      .then(setBildirimler)
+      .catch(() => undefined);
   }, [mudur]);
+
+  const tara = async () => {
+    setHata(null);
+    try {
+      const sonuc = await bildirimTara();
+      setBildirimler(await bildirimleriGetir());
+      setBilgi(
+        `${sonuc.uretilen} yeni bildirim üretildi, ${sonuc.gonderildi} gönderildi` +
+          (sonuc.hata ? `, ${sonuc.hata} hata` : '.'),
+      );
+    } catch (h) {
+      setHata(h instanceof Error ? h.message : 'Tarama yapılamadı.');
+    }
+  };
+
+  const tekrar = async (id: string) => {
+    try {
+      setBildirimler(await bildirimTekrar(id));
+    } catch (h) {
+      setHata(h instanceof Error ? h.message : 'Tekrar denenemedi.');
+    }
+  };
 
   const ekle = async (e: FormEvent) => {
     e.preventDefault();
@@ -43,11 +75,13 @@ export function Kullanicilar({ ben, onKapat }: { ben: Oturum; onKapat: () => voi
         ad: yeniAd,
         rol: yeniRol,
         sifre: yeniSifre,
+        eposta: yeniEposta,
       });
       setListe(await kullanicilariGetir());
       setYeniAd('');
       setYeniKullaniciAdi('');
       setYeniSifre('');
+      setYeniEposta('');
       setBilgi('Personel eklendi.');
     } catch (h) {
       setHata(h instanceof Error ? h.message : 'Personel eklenemedi.');
@@ -143,6 +177,7 @@ export function Kullanicilar({ ben, onKapat }: { ben: Oturum; onKapat: () => voi
                     <span>
                       <span className="font-medium">{k.ad}</span>
                       <span className="text-slate-500"> · {k.kullaniciAdi}</span>
+                      {k.eposta && <span className="text-slate-400"> · {k.eposta}</span>}
                     </span>
                     <span className="flex items-center gap-3">
                       <span
@@ -214,6 +249,16 @@ export function Kullanicilar({ ben, onKapat }: { ben: Oturum; onKapat: () => voi
                     className={alan}
                   />
                 </label>
+                <label className="sm:col-span-2">
+                  <span className={etiket}>E-posta (süre hatırlatmaları için)</span>
+                  <input
+                    type="email"
+                    value={yeniEposta}
+                    onChange={(e) => setYeniEposta(e.target.value)}
+                    placeholder="ad.soyad@belediye.gov.tr"
+                    className={alan}
+                  />
+                </label>
                 <div className="sm:col-span-2">
                   <button
                     type="submit"
@@ -223,6 +268,58 @@ export function Kullanicilar({ ben, onKapat }: { ben: Oturum; onKapat: () => voi
                   </button>
                 </div>
               </form>
+            </section>
+            <section>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium">Bildirimler</h3>
+                <button type="button" onClick={() => void tara()} className="text-xs font-medium text-slate-700 underline">
+                  şimdi tara ve gönder
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">
+                Kanallar: e-posta {ben.bildirim?.eposta ?? '—'} · SMS {ben.bildirim?.sms ?? '—'}
+              </p>
+              {bildirimler.length === 0 ? (
+                <p className="mt-2 text-sm text-slate-500">Henüz bildirim üretilmedi.</p>
+              ) : (
+                <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200">
+                  {bildirimler.map((b) => (
+                    <li key={b.id} className="px-3 py-2 text-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">{b.konu}</span>
+                          <span className="block text-xs text-slate-500">
+                            {b.kanal} · {b.hedef} · {tarihSaatGoster(b.olusturma)}
+                          </span>
+                          {b.hata && <span className="block text-xs text-rose-700">{b.hata}</span>}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs ring-1 ring-inset ${
+                              b.durum === 'gonderildi'
+                                ? 'bg-emerald-100 text-emerald-800 ring-emerald-300'
+                                : b.durum === 'hata'
+                                  ? 'bg-rose-100 text-rose-800 ring-rose-300'
+                                  : 'bg-slate-100 text-slate-700 ring-slate-300'
+                            }`}
+                          >
+                            {b.durum}
+                          </span>
+                          {b.durum !== 'gonderildi' && (
+                            <button
+                              type="button"
+                              onClick={() => void tekrar(b.id)}
+                              className="text-xs text-slate-600 underline"
+                            >
+                              tekrar
+                            </button>
+                          )}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           </>
         )}

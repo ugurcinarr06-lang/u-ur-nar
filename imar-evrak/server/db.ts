@@ -25,7 +25,23 @@ db.exec(`
     ad           TEXT NOT NULL,
     rol          TEXT NOT NULL CHECK (rol IN ('mudur', 'memur')),
     sifre_hash   TEXT NOT NULL,
+    eposta       TEXT NOT NULL DEFAULT '',
     olusturma    TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS bildirimler (
+    id         TEXT PRIMARY KEY,
+    anahtar    TEXT NOT NULL UNIQUE,
+    evrak_id   TEXT,
+    tur        TEXT NOT NULL,
+    kanal      TEXT NOT NULL,
+    hedef      TEXT NOT NULL,
+    konu       TEXT NOT NULL,
+    govde      TEXT NOT NULL,
+    durum      TEXT NOT NULL,
+    hata       TEXT NOT NULL DEFAULT '',
+    olusturma  TEXT NOT NULL,
+    gonderim   TEXT NOT NULL DEFAULT ''
   );
 
   CREATE TABLE IF NOT EXISTS oturumlar (
@@ -119,6 +135,13 @@ function gocleriUygula(): void {
   }
   if (!sutunlar.some((s) => s.name === 'hash')) {
     db.exec("ALTER TABLE ekler ADD COLUMN hash TEXT NOT NULL DEFAULT ''");
+  }
+
+  const kullaniciSutunlari = db.prepare('PRAGMA table_info(kullanicilar)').all() as {
+    name: string;
+  }[];
+  if (!kullaniciSutunlari.some((s) => s.name === 'eposta')) {
+    db.exec("ALTER TABLE kullanicilar ADD COLUMN eposta TEXT NOT NULL DEFAULT ''");
   }
 
   const evrakSutunlari = db.prepare('PRAGMA table_info(evraklar)').all() as { name: string }[];

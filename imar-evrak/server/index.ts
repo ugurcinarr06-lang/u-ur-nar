@@ -16,6 +16,9 @@ import { readFileSync } from 'node:fs';
 import { EKLER_KLASORU, db, ilkKurulum, oturumTemizle } from './db.js';
 import { incelemeHaritasi, incelemeOku, incelemeyeAl } from './ai/inceleme.js';
 import { saglayiciAdi } from './ai/saglayici.js';
+import { kurallariTara, vatandasaBildir } from './bildirim/kurallar.js';
+import { kuyrugaBak, sonBildirimler, tekrarDene } from './bildirim/kuyruk.js';
+import { kanalDurumu } from './bildirim/saglayici.js';
 import { belgeAdi } from '../src/belgeler.js';
 import { belgeListesi } from '../src/belgeler.js';
 import type {
@@ -181,7 +184,14 @@ app.post('/api/giris', (istek, yanit) => {
     'Set-Cookie',
     `${COOKIE_ADI}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${OTURUM_SURESI_MS / 1000}`,
   );
-  yanit.json({ id: satir.id, kullaniciAdi: satir.kullanici_adi, ad: satir.ad, rol: satir.rol });
+  yanit.json({
+    id: satir.id,
+    kullaniciAdi: satir.kullanici_adi,
+    ad: satir.ad,
+    rol: satir.rol,
+    yapayZeka: saglayiciAdi(),
+    bildirim: kanalDurumu(),
+  });
 });
 
 app.post('/api/cikis', (istek, yanit) => {
@@ -197,7 +207,7 @@ app.get('/api/ben', (istek, yanit) => {
     yanit.status(401).json({ hata: 'Oturum yok.' });
     return;
   }
-  yanit.json({ ...k, yapayZeka: saglayiciAdi() });
+  yanit.json({ ...k, yapayZeka: saglayiciAdi(), bildirim: kanalDurumu() });
 });
 
 app.post('/api/sifre', korumali, (istek: Istek, yanit) => {
@@ -226,19 +236,26 @@ app.post('/api/sifre', korumali, (istek: Istek, yanit) => {
 
 app.get('/api/kullanicilar', korumali, sadeceMudur, (_istek, yanit) => {
   const satirlar = db
-    .prepare('SELECT id, kullanici_adi, ad, rol FROM kullanicilar ORDER BY ad')
-    .all() as { id: string; kullanici_adi: string; ad: string; rol: Rol }[];
+    .prepare('SELECT id, kullanici_adi, ad, rol, eposta FROM kullanicilar ORDER BY ad')
+    .all() as { id: string; kullanici_adi: string; ad: string; rol: Rol; eposta: string }[];
   yanit.json(
-    satirlar.map((s) => ({ id: s.id, kullaniciAdi: s.kullanici_adi, ad: s.ad, rol: s.rol })),
+    satirlar.map((s) => ({
+      id: s.id,
+      kullaniciAdi: s.kullanici_adi,
+      ad: s.ad,
+      rol: s.rol,
+      eposta: s.eposta,
+    })),
   );
 });
 
 app.post('/api/kullanicilar', korumali, sadeceMudur, (istek, yanit) => {
-  const { kullaniciAdi, ad, rol, sifre } = istek.body as {
+  const { kullaniciAdi, ad, rol, sifre, eposta } = istek.body as {
     kullaniciAdi?: string;
     ad?: string;
     rol?: Rol;
     sifre?: string;
+    eposta?: string;
   };
   if (!kullaniciAdi?.trim() || !ad?.trim() || !sifre || sifre.length < 6) {
     yanit.status(400).json({ hata: 'Kullanıcı adı, ad ve en az 6 karakterli şifre gerekli.' });
@@ -253,17 +270,24 @@ app.post('/api/kullanicilar', korumali, sadeceMudur, (istek, yanit) => {
   }
   const id = yeniId();
   db.prepare(
-    `INSERT INTO kullanicilar (id, kullanici_adi, ad, rol, sifre_hash, olusturma)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO kullanicilar (id, kullanici_adi, ad, rol, sifre_hash, eposta, olusturma)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     kullaniciAdi.trim(),
     ad.trim(),
     rol === 'mudur' ? 'mudur' : 'memur',
     sifreOzeti(sifre),
+    (eposta ?? '').trim(),
     new Date().toISOString(),
   );
-  yanit.status(201).json({ id, kullaniciAdi: kullaniciAdi.trim(), ad: ad.trim(), rol });
+  yanit.status(201).json({
+    id,
+    kullaniciAdi: kullaniciAdi.trim(),
+    ad: ad.trim(),
+    rol,
+    eposta: (eposta ?? '').trim(),
+  });
 });
 
 app.delete('/api/kullanicilar/:id', korumali, sadeceMudur, (istek: Istek, yanit) => {
@@ -453,6 +477,11 @@ app.post('/api/evraklar/:id/islemler', korumali, (istek: Istek, yanit) => {
   db.prepare(
     'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
   ).run(yeniId(), id, simdi, durum, not ?? '', istek.kullanici!.ad);
+
+  // Vatandaşa bilgi: yalnızca eksik belge ve sonuçlanma durumlarında.
+  vatandasaBildir(id, durum, TAKIP_ADRESI);
+  void kuyrugaBak();
+
   yanit.json(tekEvrak(id));
 });
 
@@ -824,6 +853,29 @@ app.delete('/api/ekler/:id', korumali, (istek: Istek, yanit) => {
 });
 
 /* ------------------------------------------------------------------ */
+/* Bildirimler                                                         */
+/* ------------------------------------------------------------------ */
+
+app.get('/api/bildirimler', korumali, sadeceMudur, (_istek, yanit) => {
+  yanit.json(sonBildirimler(40));
+});
+
+app.post('/api/bildirimler/tara', korumali, sadeceMudur, async (_istek, yanit) => {
+  const uretilen = kurallariTara();
+  const sonuc = await kuyrugaBak();
+  yanit.json({ uretilen, ...sonuc });
+});
+
+app.post('/api/bildirimler/:id/tekrar', korumali, sadeceMudur, async (istek, yanit) => {
+  if (!tekrarDene(String(istek.params.id))) {
+    yanit.status(404).json({ hata: 'Bildirim bulunamadı veya zaten gönderilmiş.' });
+    return;
+  }
+  await kuyrugaBak();
+  yanit.json(sonBildirimler(40));
+});
+
+/* ------------------------------------------------------------------ */
 /* Vatandaş takip ucu (oturumsuz, salt okunur)                         */
 /* ------------------------------------------------------------------ */
 
@@ -927,6 +979,24 @@ if (existsSync(arayuz)) {
   // Vatandaş sayfası ayrı bir pakettir: personel arayüzünün kodunu içermez.
   app.get(/^\/takip/, (_istek, yanit) => yanit.sendFile(resolve(arayuz, 'takip.html')));
   app.get(/^\/(?!api\/).*/, (_istek, yanit) => yanit.sendFile(resolve(arayuz, 'index.html')));
+}
+
+/** Bildirim mesajlarına konan takip sayfası adresi. */
+const TAKIP_ADRESI = process.env.IMAR_TAKIP_ADRESI ?? `http://localhost:${process.env.PORT ?? 3200}/takip`;
+
+/** Süre hatırlatmaları saatte bir taranır; kuyruk aynı turda boşaltılır. */
+const BILDIRIM_ARALIGI_MS = Number(process.env.IMAR_BILDIRIM_ARALIGI ?? 60 * 60 * 1000);
+if (BILDIRIM_ARALIGI_MS > 0) {
+  const tur = async () => {
+    try {
+      kurallariTara();
+      await kuyrugaBak();
+    } catch (hata) {
+      console.error('Bildirim turu başarısız:', hata);
+    }
+  };
+  setTimeout(() => void tur(), 10_000).unref();
+  setInterval(() => void tur(), BILDIRIM_ARALIGI_MS).unref();
 }
 
 const port = Number(process.env.PORT ?? 3200);

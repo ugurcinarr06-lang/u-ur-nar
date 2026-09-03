@@ -53,6 +53,10 @@ tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
   teslim alınmayan, uygun bulunmayan, engel çıkan ve karar bekleyen belgeler
   ayrı ayrı sayılır. Listede de rozet olarak görünür (*Karara hazır*,
   *3 eksik belge*, *2 engel*…).
+- **Hatırlatmalar ve bildirimler:** hedef süreye 3 gün kalanlar sorumlusuna,
+  süresi aşılanlar sorumlusuna ve müdüre e-posta ile bildirilir; pazartesi
+  sabahı müdüre haftalık özet gider. Eksik belge ve sonuçlanma durumlarında
+  vatandaşa SMS gönderilir. Bkz. "Bildirimler".
 - **Vatandaş takibi:** her başvuruya rastgele bir takip kodu üretilir, alındı
   belgesine (kare kodla birlikte) basılır; vatandaş `/takip` sayfasından kod ve
   telefonunun son dört hanesiyle dosyasının durumunu ve eksik belgelerini
@@ -198,6 +202,47 @@ doğrulamaz. Tapu kaydının doğruluğu TAKBİS'ten, müteahhit yetkisi YAMBİS
 e-Devlet çıktıları doğrulama kodundan teyit edilir. Buradaki kontrol, memurun
 gözden kaçırabileceği tutarsızlıkları önüne getiren bir **ön elemedir**.
 
+## Bildirimler
+
+Sunucu saatte bir kuralları tarar, üretilen mesajları kuyruğa alır ve gönderir.
+Aynı bildirim iki kez gitmez (her kaydın benzersiz anahtarı vardır: gecikme
+haftada bir, yaklaşan süre günde bir hatırlatılır).
+
+| Ne zaman | Kime | Kanal |
+| --- | --- | --- |
+| Hedef süreye 3 gün veya daha az kaldı | sorumlu personel | e-posta |
+| Hedef süre aşıldı (haftada bir) | sorumlu + müdürler | e-posta |
+| Pazartesi 08:00 haftalık özet | müdürler | e-posta |
+| Durum "eksik belge"ye geçti | başvuran | SMS |
+| Başvuru onaylandı / reddedildi | başvuran | SMS |
+
+Vatandaşa giden mesaj kısa tutulur ve kişisel veri taşımaz: evrak no, eksik
+belge sayısı, takip adresi ve takip kodu. Ayrıntı takip sayfasındadır.
+
+Personelin e-postası **Hesap → Yeni personel ekle** ekranında girilir;
+hatırlatmalar evraktaki "sorumlu" adıyla eşleşen personele gider. Müdür,
+Hesap ekranından son 40 bildirimi görür, gönderilemeyenleri tekrar dener ve
+"şimdi tara ve gönder" ile taramayı elle çalıştırabilir.
+
+### Kanal ayarları
+
+| Değişken | Varsayılan | Açıklama |
+| --- | --- | --- |
+| `IMAR_EPOSTA` | `kapali` | `acik` \| `deneme` \| `kapali` |
+| `IMAR_SMTP_URL` | — | `smtp://kullanici:sifre@posta.belediye.gov.tr:587` |
+| `IMAR_EPOSTA_GONDEREN` | `imar@belediye.local` | Gönderen adresi |
+| `IMAR_SMS` | `kapali` | `acik` \| `deneme` \| `kapali` |
+| `IMAR_SMS_URL` | — | SMS sağlayıcısının HTTP ucu |
+| `IMAR_SMS_GOVDE` | `{"numara":"{{hedef}}","mesaj":"{{mesaj}}"}` | Gövde şablonu |
+| `IMAR_SMS_BASLIK` | — | Şablondaki `{{baslik}}` yerine konur |
+| `IMAR_TAKIP_ADRESI` | `http://localhost:3200/takip` | Mesajlara yazılan takip adresi |
+| `IMAR_BILDIRIM_ARALIGI` | `3600000` | Tarama sıklığı (ms); `0` kapatır |
+
+SMS için sağlayıcıya özel kod yoktur: gövde şablonu ortam değişkeninden
+geldiği için NetGSM, İletimerkezi gibi sağlayıcılara kod değiştirmeden
+bağlanır. Kanal kapalıyken bildirimler yine üretilir ve "kanal-kapali" olarak
+kaydedilir; kanal açılınca müdür ekranından tekrar denenebilir.
+
 ## Vatandaş takip ekranı
 
 Amaç, "benim dosya ne oldu" telefonlarını azaltmak. Vatandaş hesap açmaz,
@@ -266,6 +311,10 @@ yalnızca yerel kipte açıktır).
 index.html                 Uygulama girişi
 server/
   index.ts                 Express API + derlenmiş arayüzü sunar
+  bildirim/
+    kurallar.ts            Süre, eksik belge ve sonuç bildirim kuralları
+    kuyruk.ts              Bildirim kuyruğu, tekrar deneme
+    saglayici.ts           SMTP ve HTTP (SMS) göndericileri
   db.ts                    SQLite şeması, göçler, ilk kurulum
   auth.ts                  scrypt şifre özeti, oturum sabitleri
   ai/
@@ -312,7 +361,6 @@ kurumsal entegrasyon iznine bağlıdır.
 
 ## Sonraki adımlar
 
-- Gecikme hatırlatmaları (e-posta/SMS) ve müdüre haftalık özet.
 - TAKBİS/YAMBİS entegrasyonu (kurumsal izin gerektirir).
 - Parsel bazlı geçmiş: aynı ada/parseldeki tüm evraklar bir arada.
 - Eksik belge istendiğinde süre sayacının durması.
