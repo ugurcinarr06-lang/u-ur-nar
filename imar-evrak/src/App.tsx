@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlindiBelgesi } from './components/AlindiBelgesi';
 import { EksikBelgeYazisi } from './components/EksikBelgeYazisi';
 import { EvrakDetay } from './components/EvrakDetay';
 import { EvrakFormu } from './components/EvrakFormu';
@@ -35,6 +36,8 @@ export default function App() {
   const [hesapAcik, setHesapAcik] = useState(false);
   /** Eksik belge yazısı açık olan evrakın kimliği. */
   const [yaziId, setYaziId] = useState<string | null>(null);
+  /** Alındı belgesi açık olan evrakın kimliği. */
+  const [alindiId, setAlindiId] = useState<string | null>(null);
   const [uyari, setUyari] = useState<string | null>(null);
   const dosyaGirdisi = useRef<HTMLInputElement>(null);
 
@@ -72,6 +75,7 @@ export default function App() {
 
   const secili = evraklar.find((e) => e.id === seciliId) ?? null;
   const yazi = evraklar.find((e) => e.id === yaziId) ?? null;
+  const alindi = evraklar.find((e) => e.id === alindiId) ?? null;
 
   /** İnceleme arka planda sürdüğü için biten sonuçları yoklayarak alırız. */
   const bekleyenInceleme = evraklar.some((e) =>
@@ -425,6 +429,7 @@ export default function App() {
               }
               onIncelemeYenile={depo?.incelemeYenile ? incelemeYenile : undefined}
               onEksikYazi={() => setYaziId(secili.id)}
+              onAlindiBelgesi={() => setAlindiId(secili.id)}
             />
           </div>
         </div>
@@ -441,6 +446,8 @@ export default function App() {
       )}
 
       {hesapAcik && oturum && <Kullanicilar ben={oturum} onKapat={() => setHesapAcik(false)} />}
+
+      {alindi && <AlindiBelgesi evrak={alindi} onKapat={() => setAlindiId(null)} />}
 
       {yazi && (
         <EksikBelgeYazisi

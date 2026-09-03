@@ -53,6 +53,10 @@ tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
   teslim alınmayan, uygun bulunmayan, engel çıkan ve karar bekleyen belgeler
   ayrı ayrı sayılır. Listede de rozet olarak görünür (*Karara hazır*,
   *3 eksik belge*, *2 engel*…).
+- **Vatandaş takibi:** her başvuruya rastgele bir takip kodu üretilir, alındı
+  belgesine (kare kodla birlikte) basılır; vatandaş `/takip` sayfasından kod ve
+  telefonunun son dört hanesiyle dosyasının durumunu ve eksik belgelerini
+  görür. Bkz. "Vatandaş takip ekranı".
 - **Kaynağından doğrulama:** e-Devlet/kurum belgelerinde (tapu, SGK, vergi,
   EKB, YAMBİS…) barkod-doğrulama kodu alanı; kod kaydedilir, e-Devlet sorgu
   sayfasına bağlantı verilir, teyit eden personel ve tarih geçmişe yazılır.
@@ -194,6 +198,37 @@ doğrulamaz. Tapu kaydının doğruluğu TAKBİS'ten, müteahhit yetkisi YAMBİS
 e-Devlet çıktıları doğrulama kodundan teyit edilir. Buradaki kontrol, memurun
 gözden kaçırabileceği tutarsızlıkları önüne getiren bir **ön elemedir**.
 
+## Vatandaş takip ekranı
+
+Amaç, "benim dosya ne oldu" telefonlarını azaltmak. Vatandaş hesap açmaz,
+kimlik bilgisi vermez:
+
+- Evrak kaydı açılırken **takip kodu** üretilir (ör. `C87E-QNMR-59LC`):
+  12 karakter, karışan harfler (I, O, 0, 1) çıkarılmış, sıralı evrak
+  numarasından bağımsız — deneme yanılma ile bulunamaz.
+- Kod, **alındı belgesine** basılır. Belgede takip sayfasının adresini taşıyan
+  bir kare kod da vardır (telefonla okutulunca sayfa açılır). Detay panelinden
+  "alındı belgesi" ile yazdırılır.
+- Vatandaş `http://<sunucu>/takip` adresinde kodu ve **telefonunun son dört
+  hanesini** girer. Kayıtta telefon yoksa yalnızca kod sorulur.
+
+**Vatandaşın gördüğü:** evrak no, konu, işlem türü, başvuru tarihi, sade durum
+(*Başvurunuz alındı / İnceleniyor / Eksik belge var / Onaylandı / Reddedildi*),
+**eksik belge listesi**, uygun bulunmayan belgeler ve gerekçeleri, kalan süre,
+son işlem tarihi.
+
+**Görmediği:** personel adları, iç notlar, açıklama alanı, yapay zekâ
+bulguları, yüklenen dosyalar, başka hiçbir kayıt. Vatandaş ucu (`POST
+/api/takip`) ayrı ve daraltılmıştır; personel API'si oturum ister.
+
+**Güvenlik:** yanlış kod, yanlış hane ve olmayan kayıt **aynı** yanıtı verir
+(hangi kodun var olduğu sızmaz); IP başına 10 dakikada 20 deneme sınırı vardır.
+
+**Yayına alma:** vatandaş sayfası ayrı bir pakettir (`takip.html`), personel
+arayüzünün kodunu içermez. İnternete açarken **yalnızca `/takip` ve
+`POST /api/takip`** yolları dışarı verilmeli; `/api/evraklar` ve diğer uçlar iç
+ağda kalmalıdır. Ters vekil (nginx vb.) ile bu ayrım yapılır.
+
 ## Yetkiler
 
 | | Memur | Müdür |
@@ -252,7 +287,9 @@ src/
   veri/
     depo.ts                Sunucu/yerel veri katmanı, oturum çağrıları
   components/
+    AlindiBelgesi.tsx      Takip kodu ve kare kod taşıyan alındı belgesi
     EksikBelgeYazisi.tsx   Yazdırılabilir eksik belge bildirimi
+    TakipEkrani.tsx        Vatandaş sorgulama ekranı
     HazirlikKutusu.tsx     Dosya hazırlık özeti
     Inceleme.tsx           Otomatik inceleme rozeti ve bulgu listesi
     Giris.tsx              Giriş ekranı
@@ -277,6 +314,5 @@ kurumsal entegrasyon iznine bağlıdır.
 
 - Gecikme hatırlatmaları (e-posta/SMS) ve müdüre haftalık özet.
 - TAKBİS/YAMBİS entegrasyonu (kurumsal izin gerektirir).
-- Başvuru sahibi için takip numarasıyla salt-okunur durum sorgulama.
 - Parsel bazlı geçmiş: aynı ada/parseldeki tüm evraklar bir arada.
 - Eksik belge istendiğinde süre sayacının durması.

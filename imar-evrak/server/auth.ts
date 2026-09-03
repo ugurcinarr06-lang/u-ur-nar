@@ -20,6 +20,18 @@ export function sifreDogru(sifre: string, kayit: string): boolean {
 
 export const yeniToken = (): string => randomBytes(32).toString('hex');
 
+/**
+ * Vatandaşa verilen takip kodu: 12 karakter, okunuşu karışan harfler
+ * (I, O, 0, 1) çıkarılmış, üçerli gruplanmış. Sıralı evrak numarasından
+ * bağımsızdır; deneme yanılma ile bulunamaz.
+ */
+export function takipKoduUret(): string {
+  const ALFABE = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bayt = randomBytes(12);
+  const harfler = [...bayt].map((b) => ALFABE[b % ALFABE.length]).join('');
+  return `${harfler.slice(0, 4)}-${harfler.slice(4, 8)}-${harfler.slice(8, 12)}`;
+}
+
 export const yeniId = (): string => randomUUID();
 
 /** Oturum süresi: 12 saat (bir mesai günü). */

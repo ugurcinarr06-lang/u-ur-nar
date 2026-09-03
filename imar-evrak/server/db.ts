@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { sifreOzeti } from './auth.js';
+import { sifreOzeti, takipKoduUret } from './auth.js';
 
 /**
  * Tüm kayıtlar tek bir SQLite dosyasında tutulur. Yedekleme = bu dosyayı
@@ -50,9 +50,12 @@ db.exec(`
     pafta             TEXT NOT NULL DEFAULT '',
     sorumlu           TEXT NOT NULL DEFAULT '',
     aciklama          TEXT NOT NULL DEFAULT '',
+    takip_kodu        TEXT NOT NULL DEFAULT '',
     olusturma         TEXT NOT NULL,
     guncelleme        TEXT NOT NULL
   );
+
+  CREATE INDEX IF NOT EXISTS evraklar_takip ON evraklar(takip_kodu);
 
   CREATE TABLE IF NOT EXISTS islemler (
     id        TEXT PRIMARY KEY,
@@ -117,6 +120,18 @@ function gocleriUygula(): void {
   if (!sutunlar.some((s) => s.name === 'hash')) {
     db.exec("ALTER TABLE ekler ADD COLUMN hash TEXT NOT NULL DEFAULT ''");
   }
+
+  const evrakSutunlari = db.prepare('PRAGMA table_info(evraklar)').all() as { name: string }[];
+  if (!evrakSutunlari.some((s) => s.name === 'takip_kodu')) {
+    db.exec("ALTER TABLE evraklar ADD COLUMN takip_kodu TEXT NOT NULL DEFAULT ''");
+    db.exec('CREATE INDEX IF NOT EXISTS evraklar_takip ON evraklar(takip_kodu)');
+  }
+  // Kodsuz kalmış kayıtlara (göç öncesi açılanlar) kod üretilir.
+  const kodsuzlar = db.prepare("SELECT id FROM evraklar WHERE takip_kodu = ''").all() as {
+    id: string;
+  }[];
+  const kodYaz = db.prepare('UPDATE evraklar SET takip_kodu = ? WHERE id = ?');
+  for (const e of kodsuzlar) kodYaz.run(takipKoduUret(), e.id);
 
   const belgeSutunlari = db.prepare('PRAGMA table_info(belgeler)').all() as { name: string }[];
   for (const [ad, tanim] of [

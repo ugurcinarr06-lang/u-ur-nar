@@ -2,14 +2,31 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import multer from 'multer';
 import { existsSync, rmSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
-import { COOKIE_ADI, OTURUM_SURESI_MS, sifreDogru, sifreOzeti, yeniId, yeniToken } from './auth.js';
+import {
+  COOKIE_ADI,
+  OTURUM_SURESI_MS,
+  sifreDogru,
+  sifreOzeti,
+  takipKoduUret,
+  yeniId,
+  yeniToken,
+} from './auth.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { EKLER_KLASORU, db, ilkKurulum, oturumTemizle } from './db.js';
 import { incelemeHaritasi, incelemeOku, incelemeyeAl } from './ai/inceleme.js';
 import { saglayiciAdi } from './ai/saglayici.js';
 import { belgeAdi } from '../src/belgeler.js';
-import type { BelgeDurumu, Durum, Ek, Evrak, Inceleme, Tur } from '../src/types.js';
+import { belgeListesi } from '../src/belgeler.js';
+import type {
+  BelgeDurumu,
+  Durum,
+  Ek,
+  Evrak,
+  Inceleme,
+  TakipSonucu,
+  Tur,
+} from '../src/types.js';
 
 type Rol = 'mudur' | 'memur';
 interface Kullanici {
@@ -27,6 +44,7 @@ interface Istek extends Request {
 interface EvrakSatir {
   id: string;
   no: string;
+  takip_kodu: string;
   konu: string;
   tur: string;
   durum: string;
@@ -311,6 +329,7 @@ function evrakDon(
     },
     sorumlu: satir.sorumlu,
     aciklama: satir.aciklama,
+    takipKodu: satir.takip_kodu,
     gecmis: islemler.map((i) => ({
       id: i.id,
       tarih: i.tarih,
@@ -387,10 +406,10 @@ app.post('/api/evraklar', korumali, (istek: Istek, yanit) => {
   const simdi = new Date().toISOString();
   db.prepare(
     `INSERT INTO evraklar (id, no, konu, tur, durum, gelis_tarihi, hedef_gun, basvuran_ad,
-       basvuran_telefon, mahalle, ada, parsel, pafta, sorumlu, aciklama, olusturma, guncelleme)
+       basvuran_telefon, mahalle, ada, parsel, pafta, sorumlu, aciklama, takip_kodu, olusturma, guncelleme)
      VALUES (@id, @no, @konu, @tur, @durum, @gelis_tarihi, @hedef_gun, @basvuran_ad,
-       @basvuran_telefon, @mahalle, @ada, @parsel, @pafta, @sorumlu, @aciklama, @simdi, @simdi)`,
-  ).run({ ...alan, id, simdi });
+       @basvuran_telefon, @mahalle, @ada, @parsel, @pafta, @sorumlu, @aciklama, @takip_kodu, @simdi, @simdi)`,
+  ).run({ ...alan, id, simdi, takip_kodu: takipKoduUret() });
   db.prepare(
     'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
   ).run(yeniId(), id, simdi, alan.durum, 'Evrak kaydı açıldı.', istek.kullanici!.ad);
@@ -805,12 +824,108 @@ app.delete('/api/ekler/:id', korumali, (istek: Istek, yanit) => {
 });
 
 /* ------------------------------------------------------------------ */
+/* Vatandaş takip ucu (oturumsuz, salt okunur)                         */
+/* ------------------------------------------------------------------ */
+
+/** IP başına deneme sayacı: kod tarama girişimlerini yavaşlatır. */
+const denemeler = new Map<string, { sayi: number; sifirlama: number }>();
+const DENEME_SINIRI = 20;
+const DENEME_PENCERESI_MS = 10 * 60 * 1000;
+
+function denemeHakkiVar(ip: string): boolean {
+  const simdi = Date.now();
+  const kayit = denemeler.get(ip);
+  if (!kayit || kayit.sifirlama < simdi) {
+    denemeler.set(ip, { sayi: 1, sifirlama: simdi + DENEME_PENCERESI_MS });
+    return true;
+  }
+  kayit.sayi += 1;
+  return kayit.sayi <= DENEME_SINIRI;
+}
+
+/**
+ * Vatandaşın takip kodu ile başvurusunu sorguladığı tek uç. Personel
+ * bilgisi, iç notlar, inceleme bulguları ve dosyalar burada YOKTUR.
+ */
+app.post('/api/takip', (istek, yanit) => {
+  const ip = istek.ip ?? 'bilinmiyor';
+  if (!denemeHakkiVar(ip)) {
+    yanit.status(429).json({ hata: 'Çok fazla deneme yapıldı. Lütfen sonra tekrar deneyin.' });
+    return;
+  }
+
+  const { kod, sonDort } = istek.body as { kod?: string; sonDort?: string };
+  // Hangi kodun var olduğu sızmasın diye tüm başarısızlıklar aynı yanıtı verir.
+  const bulunamadi = () =>
+    yanit.status(404).json({ hata: 'Bu bilgilerle bir başvuru bulunamadı.' });
+
+  const temiz = (kod ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (temiz.length !== 12) {
+    bulunamadi();
+    return;
+  }
+  const bicimli = `${temiz.slice(0, 4)}-${temiz.slice(4, 8)}-${temiz.slice(8, 12)}`;
+
+  const satir = db.prepare('SELECT * FROM evraklar WHERE takip_kodu = ?').get(bicimli) as
+    | (EvrakSatir & { guncelleme: string })
+    | undefined;
+  if (!satir) {
+    bulunamadi();
+    return;
+  }
+
+  // İkinci doğrulama: kayıtta telefon varsa son dört hane sorulur.
+  const telefonHaneleri = satir.basvuran_telefon.replace(/\D/g, '');
+  if (telefonHaneleri.length >= 4) {
+    if ((sonDort ?? '').replace(/\D/g, '') !== telefonHaneleri.slice(-4)) {
+      bulunamadi();
+      return;
+    }
+  }
+
+  const belgeler = db
+    .prepare('SELECT * FROM belgeler WHERE evrak_id = ?')
+    .all(satir.id) as BelgeSatir[];
+  const tanimlar = belgeListesi(satir.tur as Tur).filter((b) => b.zorunlu);
+
+  const eksikBelgeler: string[] = [];
+  const uygunsuzBelgeler: { ad: string; neden?: string }[] = [];
+  for (const tanim of tanimlar) {
+    const kayit = belgeler.find((b) => b.kod === tanim.kod);
+    if (!kayit?.teslim) eksikBelgeler.push(tanim.ad);
+    else if (kayit.karar === 'uygunsuz') {
+      uygunsuzBelgeler.push({ ad: tanim.ad, neden: kayit.karar_notu || undefined });
+    }
+  }
+
+  const gecenGun = Math.round(
+    (Date.now() - new Date(`${satir.gelis_tarihi}T00:00:00`).getTime()) / 86_400_000,
+  );
+
+  const sonuc: TakipSonucu = {
+    no: satir.no,
+    konu: satir.konu,
+    tur: satir.tur as Tur,
+    gelisTarihi: satir.gelis_tarihi,
+    durum: satir.durum as Durum,
+    sonGuncelleme: satir.guncelleme,
+    hedefGun: satir.hedef_gun,
+    kalanGun: satir.hedef_gun - gecenGun,
+    eksikBelgeler,
+    uygunsuzBelgeler,
+  };
+  yanit.json(sonuc);
+});
+
+/* ------------------------------------------------------------------ */
 /* Derlenmiş arayüz                                                    */
 /* ------------------------------------------------------------------ */
 
 const arayuz = resolve('dist');
 if (existsSync(arayuz)) {
   app.use(express.static(arayuz));
+  // Vatandaş sayfası ayrı bir pakettir: personel arayüzünün kodunu içermez.
+  app.get(/^\/takip/, (_istek, yanit) => yanit.sendFile(resolve(arayuz, 'takip.html')));
   app.get(/^\/(?!api\/).*/, (_istek, yanit) => yanit.sendFile(resolve(arayuz, 'index.html')));
 }
 

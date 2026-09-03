@@ -28,6 +28,8 @@ interface Props {
   onBelgeKarar?: (kod: string, karar: 'uygun' | 'uygunsuz' | '', not: string) => void;
   onBelgeDogrulama?: (kod: string, dogrulamaKodu: string, dogrulandi: boolean) => void;
   onIncelemeYenile?: (ekId: string) => void;
+  /** Alındı belgesini açar; yalnızca takip kodu olan kayıtlarda vardır. */
+  onAlindiBelgesi?: () => void;
   /** Eksik belge yazısını açar; eksik yoksa çağrılmaz. */
   onEksikYazi: () => void;
 }
@@ -56,6 +58,7 @@ export function EvrakDetay({
   onBelgeKarar,
   onBelgeDogrulama,
   onIncelemeYenile,
+  onAlindiBelgesi,
   onEksikYazi,
 }: Props) {
   const [durum, setDurum] = useState<Durum>(evrak.durum);
@@ -165,6 +168,24 @@ export function EvrakDetay({
           <Satir ad="Ada" deger={evrak.tasinmaz.ada} />
           <Satir ad="Parsel" deger={evrak.tasinmaz.parsel} />
         </dl>
+
+        {evrak.takipKodu && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">
+            <span className="text-xs uppercase tracking-wide text-slate-500">
+              Vatandaş takip kodu
+            </span>
+            <span className="font-mono text-sm font-medium tracking-wider">{evrak.takipKodu}</span>
+            {onAlindiBelgesi && (
+              <button
+                type="button"
+                onClick={onAlindiBelgesi}
+                className="text-xs font-medium text-slate-700 underline"
+              >
+                alındı belgesi
+              </button>
+            )}
+          </div>
+        )}
 
         {evrak.aciklama && (
           <div>

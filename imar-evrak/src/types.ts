@@ -124,6 +124,23 @@ export interface Evrak {
   ekler: Ek[];
   /** Yalnızca işaretlenmiş belgeler tutulur; kalanlar eksik sayılır. */
   belgeler: BelgeDurumu[];
+  /** Vatandaşa verilen takip kodu; yalnızca sunucu kipinde vardır. */
+  takipKodu?: string;
+}
+
+/** Vatandaşın takip ekranında gördüğü, daraltılmış bilgi. */
+export interface TakipSonucu {
+  no: string;
+  konu: string;
+  tur: Tur;
+  gelisTarihi: string;
+  durum: Durum;
+  sonGuncelleme: string;
+  hedefGun: number;
+  /** Hedef süreye kalan gün; negatifse aşım. */
+  kalanGun: number;
+  eksikBelgeler: string[];
+  uygunsuzBelgeler: { ad: string; neden?: string }[];
 }
 
 /** Formdan gelen, henüz kaydedilmemiş evrak bilgileri. */
