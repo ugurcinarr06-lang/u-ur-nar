@@ -205,19 +205,29 @@ export function kurallariUygula(g: IncelemeGirdisi): Bulgu[] {
   }
 
   // 4) Tarih
-  const bulunanTarihler = tarihler(metin);
+  // Belgenin kendi tarihi geçmişte olur; ileri tarihler (geçerlilik, vade)
+  // olağandır. Bu yüzden güncellik, geçmişteki en yeni tarihe göre ölçülür;
+  // "ileri tarih" uyarısı yalnızca belgede hiç geçmiş tarih yoksa verilir.
+  const bulunanTarihler = tarihler(metin).sort();
+  const gecmisTarihler = bulunanTarihler.filter((t) => gunFarki(t) >= -1);
   if (bulunanTarihler.length) {
-    const enYeni = bulunanTarihler.sort().at(-1)!;
-    const yas = gunFarki(enYeni);
     const sinir = TAZELIK[g.belgeKodu];
-    if (yas < -1) {
-      ekle('uyari', 'Belgede ileri tarih var', `Belgedeki en yeni tarih: ${enYeni}.`);
-    } else if (sinir && yas > sinir) {
+    if (gecmisTarihler.length === 0) {
       ekle(
         'uyari',
-        'Belge güncelliğini yitirmiş olabilir',
-        `Belgedeki en yeni tarih ${enYeni} (${yas} gün önce); bu belge için beklenen azami yaş ${sinir} gün.`,
+        'Belgede ileri tarih var',
+        `Belgedeki tarihlerin hepsi gelecekte: ${bulunanTarihler.join(', ')}.`,
       );
+    } else {
+      const enYeni = gecmisTarihler.at(-1)!;
+      const yas = gunFarki(enYeni);
+      if (sinir && yas > sinir) {
+        ekle(
+          'uyari',
+          'Belge güncelliğini yitirmiş olabilir',
+          `Belgedeki en yeni tarih ${enYeni} (${yas} gün önce); bu belge için beklenen azami yaş ${sinir} gün.`,
+        );
+      }
     }
   } else if (TAZELIK[g.belgeKodu]) {
     ekle('uyari', 'Belgede tarih bulunamadı', 'Güncellik kontrolü yapılamadı.');
