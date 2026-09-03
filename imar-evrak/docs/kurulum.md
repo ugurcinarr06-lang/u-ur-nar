@@ -8,13 +8,20 @@ Adımlar Linux (Ubuntu/Debian) içindir; Windows notları sonda.
 | | En az | Önerilen |
 | --- | --- | --- |
 | İşletim sistemi | Ubuntu 22.04 / Debian 12 | aynı |
-| Node.js | 20 | 22 |
+| Node.js | 20 | **22 LTS** (24 ile kurulmaz, aşağıya bakın) |
 | Bellek | 2 GB | 4 GB (OCR ve yerel model kullanılacaksa 8 GB+) |
 | Disk | 20 GB | 100 GB (evrak ekleri zamanla büyür) |
 | Ağ | İç ağdan erişim | Vatandaş takibi için ayrıca dış erişim |
 
 Veritabanı ayrı bir sunucu istemez; her şey `veri/` klasöründeki tek SQLite
 dosyası ve ek dosyalarıdır.
+
+> **Node 24 ile kurulmaz.** `better-sqlite3` hazır ikili dosyalarını Node 22'ye
+> kadar yayımlıyor; Node 24'te npm kaynaktan derlemeye çalışır ve Windows'ta
+> Visual Studio C++ araçlarını, Linux'ta build-essential'ı ister. Hata
+> `gyp ERR! find VS` veya `Could not find any Visual Studio installation`
+> biçiminde görünür. Çözüm: **Node 22 LTS** kurun, `node_modules` ile
+> `package-lock.json` dosyalarını silip `npm install` komutunu tekrarlayın.
 
 ## 2. Kurulum
 

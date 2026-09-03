@@ -84,7 +84,8 @@ tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
 
 ## Çalıştırma
 
-**Gereksinim:** Node.js 20+
+**Gereksinim:** Node.js 20–22 (**22 LTS önerilir**; Node 24'te `better-sqlite3`
+hazır ikili bulamayıp kaynaktan derlemeye çalışır ve C++ derleyicisi ister)
 
 ### Kurum kullanımı (ortak veritabanı + giriş)
 
