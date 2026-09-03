@@ -25,6 +25,7 @@
     "src",
     "server",
     "vite.config.ts",
-    "vite.config.tek.ts"
+    "vite.config.tek.ts",
+    "scripts"
   ]
 }

@@ -14,7 +14,8 @@
     "sunucu": "tsx watch server/index.ts",
     "basla": "npm run build && tsx server/index.ts",
     "ocr-kur": "node scripts/ocr-dil-indir.mjs",
-    "yedek": "node scripts/yedek.mjs"
+    "yedek": "node scripts/yedek.mjs",
+    "sifre-sifirla": "tsx scripts/sifre-sifirla.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

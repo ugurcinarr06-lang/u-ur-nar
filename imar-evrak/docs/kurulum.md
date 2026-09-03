@@ -209,7 +209,25 @@ sudo systemctl start imar-evrak
 6. Bir deneme evrakı açıp alındı belgesini yazdırın, takip ekranından
    sorgulayın.
 
-## 8. Güncelleme
+## 8. Şifre unutulduğunda
+
+Sunucuya erişimi olan yönetici, uygulama klasöründe:
+
+```bash
+npm run sifre-sifirla                      # kayıtlı kullanıcıları listeler
+npm run sifre-sifirla -- admin             # rastgele şifre üretir, ekrana yazar
+npm run sifre-sifirla -- admin YeniSifre1  # belirlediğiniz şifreyi atar
+```
+
+Sıfırlanan hesabın **açık oturumları kapatılır**. Girdikten sonra
+**Hesap → Şifremi değiştir** ile kendi şifrenizi koyun.
+
+Bu betiği çalıştırabilen kişi zaten veritabanı dosyasını okuyabilir; bu yüzden
+ek bir yetki açığı yaratmaz. Buradaki güvenlik sınırı **sunucu dosyalarına
+erişim**tir — `veri/` klasörünü ve `/etc/imar-evrak.env` dosyasını yalnızca
+`imar` kullanıcısına açık tutun.
+
+## 9. Güncelleme
 
 ```bash
 cd /opt/imar-evrak/uygulama
@@ -221,7 +239,7 @@ sudo systemctl restart imar-evrak
 Veritabanı göçleri açılışta kendiliğinden çalışır; ayrı bir adım yoktur.
 Güncelleme öncesi `npm run yedek` alın.
 
-## 9. İzleme
+## 10. İzleme
 
 ```bash
 systemctl status imar-evrak
@@ -232,7 +250,7 @@ du -sh /opt/imar-evrak/veri/ekler      # ek dosyalarının büyümesi
 Bildirimlerin gidip gitmediği **Hesap → Bildirimler** ekranından görülür;
 hatalı gönderimler orada tekrar denenebilir.
 
-## 10. Bilinen sınırlar
+## 11. Bilinen sınırlar
 
 - **HTTPS'i siz zorunlu kılmalısınız.** Oturum çerezi, istek HTTPS üzerinden
   geldiğinde `Secure` bayrağı alır (ters vekil arkasında `TRUST_PROXY=1`

@@ -100,6 +100,9 @@ oluşturulur ve şifresi konsola bir kez yazılır — not al, girdikten sonra
 **Hesap → Şifremi değiştir** ile değiştir. Şifreyi kendin belirlemek için:
 `IMAR_ADMIN_SIFRE=... npm run basla`.
 
+Şifre unutulursa sunucuda `npm run sifre-sifirla -- admin` (bkz.
+[`docs/kurulum.md`](docs/kurulum.md)).
+
 Diğer personeli müdür hesabı **Hesap → Yeni personel ekle** ile açar.
 Uygulamayı ağdaki bir bilgisayarda çalıştırırsan diğerleri
 `http://<bilgisayar-adı>:3200` üzerinden aynı listeyi görür.
