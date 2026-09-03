@@ -410,7 +410,7 @@ export default function App() {
       <header className="no-print border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4">
           <div>
-            <h1 className="text-xl font-semibold">İmar Evrak Takip</h1>
+            <h1 className="text-xl font-semibold">Yapı Kontrol Müdürlüğü İmar Evrak Takip</h1>
             <p className="text-sm text-slate-500">
               {sunucuKipi
                 ? `${oturum?.ad} · ${oturum?.rol === 'mudur' ? 'Müdür' : 'Memur'} — kayıtlar ortak veritabanında`

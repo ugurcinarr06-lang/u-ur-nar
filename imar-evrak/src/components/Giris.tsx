@@ -25,7 +25,7 @@ export function Giris({ onGiris }: { onGiris: (oturum: Oturum) => void }) {
         onSubmit={(e) => void gonder(e)}
         className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-7 shadow-sm"
       >
-        <h1 className="text-xl font-semibold">İmar Evrak Takip</h1>
+        <h1 className="text-xl font-semibold">Yapı Kontrol Müdürlüğü İmar Evrak Takip</h1>
         <p className="mt-1 text-sm text-slate-500">Devam etmek için giriş yapın.</p>
 
         <label className="mt-6 block">

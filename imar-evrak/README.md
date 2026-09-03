@@ -1,4 +1,4 @@
-# İmar Evrak Takip
+# Yapı Kontrol Müdürlüğü İmar Evrak Takip
 
 Belediye imar müdürlüğüne gelen evrakların (ruhsat, iskân, imar durumu,
 şikâyet…) kaydı, durum takibi ve süre kontrolü için web uygulaması.
