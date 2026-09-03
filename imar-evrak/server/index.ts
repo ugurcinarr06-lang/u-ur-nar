@@ -107,6 +107,15 @@ ilkKurulum();
 oturumTemizle();
 
 const app = express();
+
+/**
+ * Ters vekil (nginx) arkasında istemci IP'si X-Forwarded-For başlığından
+ * okunur; ayarlanmazsa takip ucundaki deneme sınırı tüm ziyaretçiler için
+ * ortak sayılırdı. Değer: "1" (tek vekil) veya vekil IP/ağı.
+ */
+const vekil = process.env.TRUST_PROXY ?? '';
+if (vekil) app.set('trust proxy', /^\d+$/.test(vekil) ? Number(vekil) : vekil);
+
 app.use(express.json({ limit: '1mb' }));
 
 /* ------------------------------------------------------------------ */

@@ -10,7 +10,8 @@
     "build:tek": "vite build --config vite.config.tek.ts",
     "sunucu": "tsx watch server/index.ts",
     "basla": "npm run build && tsx server/index.ts",
-    "ocr-kur": "node scripts/ocr-dil-indir.mjs"
+    "ocr-kur": "node scripts/ocr-dil-indir.mjs",
+    "yedek": "node scripts/yedek.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.123.0",

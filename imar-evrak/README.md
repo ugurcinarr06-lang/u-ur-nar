@@ -110,6 +110,7 @@ Uygulamayı ağdaki bir bilgisayarda çalıştırırsan diğerleri
 | `PORT` | `3200` | Sunucu portu |
 | `IMAR_DB` | `veri/imar-evrak.db` | Veritabanı dosyası (ağ sürücüsü de olabilir) |
 | `IMAR_ADMIN_SIFRE` | rastgele | İlk kurulumdaki admin şifresi |
+| `TRUST_PROXY` | — | Ters vekil arkasındaysa `1` (istemci IP'si için) |
 
 ### Geliştirme
 
@@ -127,6 +128,9 @@ Derleme: `npm run build` (önce `tsc --noEmit` ile tip kontrolü yapar),
 `npm run build:tek` komutu CSS ve JS'i tek bir HTML dosyasına gömer:
 `dist-tek/index.html`. Bu dosya sunucu istemez — çift tıklayarak açılabilir,
 USB ile taşınabilir veya bir iç ağ paylaşımına konabilir.
+
+Sunucuya kurulum, systemd servisi, nginx yapılandırması, yedekleme ve
+güncelleme için: [`docs/kurulum.md`](docs/kurulum.md).
 
 ## Yapay zekâ incelemesi
 
