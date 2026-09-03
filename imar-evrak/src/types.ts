@@ -1,3 +1,7 @@
+import type { Gorus } from './gorus';
+import type { Tahakkuk } from './harc';
+import type { YapiBilgisi } from './yapi';
+
 /** Evrakın iş akışındaki durumu. */
 export type Durum =
   | 'yeni'
@@ -124,6 +128,12 @@ export interface Evrak {
   ekler: Ek[];
   /** Yalnızca işaretlenmiş belgeler tutulur; kalanlar eksik sayılır. */
   belgeler: BelgeDurumu[];
+  /** Ruhsat/iskân/imar durumu belgelerini dolduran yapı ve parsel bilgileri. */
+  yapi: YapiBilgisi;
+  /** Başka kurumlardan istenen görüşler. */
+  gorusler: Gorus[];
+  /** Son harç tahakkuku; hesaplanmadıysa yoktur. */
+  tahakkuk?: Tahakkuk;
   /** Vatandaşa verilen takip kodu; yalnızca sunucu kipinde vardır. */
   takipKodu?: string;
 }
@@ -141,10 +151,15 @@ export interface TakipSonucu {
   kalanGun: number;
   eksikBelgeler: string[];
   uygunsuzBelgeler: { ad: string; neden?: string }[];
+  /** Cevabı beklenen kurum görüşleri — vatandaş gecikmenin nedenini görsün. */
+  beklenenGorusler: string[];
 }
 
 /** Formdan gelen, henüz kaydedilmemiş evrak bilgileri. */
-export type Taslak = Omit<Evrak, 'id' | 'gecmis' | 'ekler' | 'belgeler'>;
+export type Taslak = Omit<
+  Evrak,
+  'id' | 'gecmis' | 'ekler' | 'belgeler' | 'yapi' | 'gorusler' | 'tahakkuk'
+>;
 
 /** Liste ekranındaki filtre durumu. */
 export interface Filtre {
@@ -155,6 +170,12 @@ export interface Filtre {
   sadeceGeciken: boolean;
   /** Sonuçlanmamış (açık) dosyalar; özet kartından açılır. */
   sadeceAcik: boolean;
+  /** Zorunlu belgeleri tamam, karar bekleyen dosyalar. */
+  sadeceHazir: boolean;
+  /** Cevabı beklenen kurum görüşü olan dosyalar. */
+  sadeceGorusBekleyen: boolean;
+  /** Harcı tahakkuk etmiş ama tahsil edilmemiş dosyalar. */
+  sadeceOdenmemis: boolean;
 }
 
 /** Yedek dosyasının biçimi. */

@@ -82,11 +82,52 @@ db.exec(`
     sorumlu           TEXT NOT NULL DEFAULT '',
     aciklama          TEXT NOT NULL DEFAULT '',
     takip_kodu        TEXT NOT NULL DEFAULT '',
+    yapi              TEXT NOT NULL DEFAULT '{}',
     olusturma         TEXT NOT NULL,
     guncelleme        TEXT NOT NULL
   );
 
   CREATE INDEX IF NOT EXISTS evraklar_takip ON evraklar(takip_kodu);
+
+  /* Başka kurumlardan istenen görüşler. */
+  CREATE TABLE IF NOT EXISTS gorusler (
+    id               TEXT PRIMARY KEY,
+    evrak_id         TEXT NOT NULL REFERENCES evraklar(id) ON DELETE CASCADE,
+    kurum            TEXT NOT NULL,
+    konu             TEXT NOT NULL DEFAULT '',
+    durum            TEXT NOT NULL DEFAULT 'hazirlaniyor',
+    gonderim_tarihi  TEXT NOT NULL DEFAULT '',
+    cevap_tarihi     TEXT NOT NULL DEFAULT '',
+    sayi             TEXT NOT NULL DEFAULT '',
+    cevap_sayisi     TEXT NOT NULL DEFAULT '',
+    aciklama         TEXT NOT NULL DEFAULT '',
+    olusturan        TEXT NOT NULL DEFAULT '',
+    tarih            TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS gorusler_evrak ON gorusler(evrak_id, tarih);
+
+  /* Harç tahakkuku: evrak başına son hesap. */
+  CREATE TABLE IF NOT EXISTS tahakkuklar (
+    evrak_id      TEXT PRIMARY KEY REFERENCES evraklar(id) ON DELETE CASCADE,
+    satirlar      TEXT NOT NULL DEFAULT '[]',
+    toplam        REAL NOT NULL DEFAULT 0,
+    uyarilar      TEXT NOT NULL DEFAULT '[]',
+    tarife_onayli INTEGER NOT NULL DEFAULT 0,
+    tarife_yili   INTEGER NOT NULL DEFAULT 0,
+    makbuz_no     TEXT NOT NULL DEFAULT '',
+    odeme_tarihi  TEXT NOT NULL DEFAULT '',
+    hesaplayan    TEXT NOT NULL DEFAULT '',
+    tarih         TEXT NOT NULL
+  );
+
+  /* Kuruma özel ayarlar (harç tarifesi gibi). */
+  CREATE TABLE IF NOT EXISTS ayarlar (
+    anahtar     TEXT PRIMARY KEY,
+    deger       TEXT NOT NULL,
+    guncelleyen TEXT NOT NULL DEFAULT '',
+    tarih       TEXT NOT NULL
+  );
 
   CREATE TABLE IF NOT EXISTS islemler (
     id        TEXT PRIMARY KEY,
@@ -167,6 +208,9 @@ function gocleriUygula(): void {
   if (!evrakSutunlari.some((s) => s.name === 'takip_kodu')) {
     db.exec("ALTER TABLE evraklar ADD COLUMN takip_kodu TEXT NOT NULL DEFAULT ''");
     db.exec('CREATE INDEX IF NOT EXISTS evraklar_takip ON evraklar(takip_kodu)');
+  }
+  if (!evrakSutunlari.some((s) => s.name === 'yapi')) {
+    db.exec("ALTER TABLE evraklar ADD COLUMN yapi TEXT NOT NULL DEFAULT '{}'");
   }
   // Kodsuz kalmış kayıtlara (göç öncesi açılanlar) kod üretilir.
   const kodsuzlar = db.prepare("SELECT id FROM evraklar WHERE takip_kodu = ''").all() as {

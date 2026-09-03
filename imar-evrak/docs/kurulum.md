@@ -206,8 +206,19 @@ sudo systemctl start imar-evrak
 4. `IMAR_ADMIN_SIFRE` satırını ayar dosyasından silin.
 5. `src/belgeler.ts` içindeki belge listelerini belediyenizin uygulamasına
    göre gözden geçirin, gerekiyorsa düzenleyip `npm run build` çalıştırın.
-6. Bir deneme evrakı açıp alındı belgesini yazdırın, takip ekranından
-   sorgulayın.
+6. **Harç tarifesini girin:** bir dosya açıp **Harç ve ücretler → tarife**
+   ekranından, belediye meclisinizin tarife cetvelindeki birim fiyatları
+   yazın; kullanmadığınız kalemleri "aktif" işaretinden çıkarın, eksik
+   kalemleri "+ Kalem ekle" ile tanımlayın. "Yapı maliyetinin yüzdesi"
+   tabanlı bir kalem kullanacaksanız Bakanlık tebliğindeki **yapı sınıfı m²
+   birim maliyetlerini** de girin. Sonunda *"bu tarife belediyemizin
+   yürürlükteki cetvelidir"* kutusunu işaretleyin — işaretlenmeden basılan
+   tahakkuk fişlerinde "bilgi amaçlıdır" uyarısı çıkar. Tarifeyi yalnızca
+   müdür değiştirebilir; yıl başında güncellemeyi unutmayın.
+7. `src/yapi.ts` içindeki yapı/parsel alanlarını, ruhsat ve imar durumu
+   formlarınızla karşılaştırın; farklıysa düzenleyip `npm run build` yapın.
+8. Bir deneme evrakı açıp alındı belgesini yazdırın, takip ekranından
+   sorgulayın; yapı bilgilerini doldurup ruhsat çıktısını basın.
 
 ## 8. Şifre unutulduğunda
 
@@ -263,6 +274,14 @@ hatalı gönderimler orada tekrar denenebilir.
 - **Yerel model donanım ister.** `IMAR_AI=ollama` için en az 8 GB bellek
   önerilir; yetersizse `IMAR_AI=kapali` bırakın, kural kontrolleri çalışmaya
   devam eder.
+- **Harç tutarları belediyenindir.** Sistem tarife cetvelini bilmez, yalnızca
+  hesap yöntemini bilir. Tarife girilmeden üretilen tahakkuklar sıfır çıkar ve
+  "bilgi amaçlıdır" damgası taşır. Tarife yıl başında elle güncellenir;
+  otomatik bir güncelleme kaynağı yoktur.
+- **Belge çıktıları imza yerine geçmez.** Ruhsat, iskân ve imar durumu
+  belgeleri dosyadaki bilgilerden doldurulur; hukuki geçerlilik ıslak/e-imza
+  ile doğar. Belediyenizin form düzeni farklıysa ilgili bileşen
+  (`src/components/RuhsatBelgesi.tsx` vb.) düzenlenir.
 
 ## Windows notları
 

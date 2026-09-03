@@ -1,4 +1,7 @@
 import { evraklariOku, evraklariYaz } from '../storage';
+import { harcHesapla, tarifeDuzelt, VARSAYILAN_TARIFE, type Tarife } from '../harc';
+import type { Gorus } from '../gorus';
+import type { YapiBilgisi } from '../yapi';
 import type { Bulgu, Durum, Evrak, Taslak } from '../types';
 import { yeniId } from '../utils';
 
@@ -95,6 +98,18 @@ export interface Depo {
   ): Promise<Evrak>;
   /** Ekin tarayıcıda açılacağı adres. */
   ekAdresi?(ekId: string): string;
+  /** Ruhsat/iskân/imar durumu belgelerini dolduran yapı bilgileri. */
+  yapiKaydet(evrakId: string, yapi: YapiBilgisi): Promise<Evrak>;
+  /** Kurum görüşü kayıtları. */
+  gorusEkle(evrakId: string, gorus: Partial<Gorus>): Promise<Evrak>;
+  gorusGuncelle(gorusId: string, gorus: Partial<Gorus>): Promise<Evrak>;
+  gorusSil(gorusId: string): Promise<Evrak>;
+  /** Harç tahakkuku; tutarlar sunucu kipinde sunucuda hesaplanır. */
+  tahakkukHesapla(evrakId: string): Promise<Evrak>;
+  odemeKaydet(evrakId: string, makbuzNo: string, odemeTarihi: string): Promise<Evrak>;
+  tarifeGetir(): Promise<Tarife>;
+  /** Tarifeyi yalnızca müdür kaydedebilir (sunucu kipinde uç da denetler). */
+  tarifeKaydet(tarife: Tarife): Promise<Tarife>;
   /** Yedekten toplu geri yükleme — yalnızca yerel kipte desteklenir. */
   topluYaz?(evraklar: Evrak[]): Promise<void>;
 }
@@ -181,6 +196,26 @@ export const sunucuDepo: Depo = {
       method: 'PUT',
       body: JSON.stringify({ kod, dogrulamaKodu, dogrulandi }),
     }),
+  yapiKaydet: (evrakId, yapi) =>
+    api<Evrak>(`/api/evraklar/${evrakId}/yapi`, { method: 'PUT', body: JSON.stringify({ yapi }) }),
+  gorusEkle: (evrakId, gorus) =>
+    api<Evrak>(`/api/evraklar/${evrakId}/gorusler`, {
+      method: 'POST',
+      body: JSON.stringify(gorus),
+    }),
+  gorusGuncelle: (gorusId, gorus) =>
+    api<Evrak>(`/api/gorusler/${gorusId}`, { method: 'PUT', body: JSON.stringify(gorus) }),
+  gorusSil: (gorusId) => api<Evrak>(`/api/gorusler/${gorusId}`, { method: 'DELETE' }),
+  tahakkukHesapla: (evrakId) =>
+    api<Evrak>(`/api/evraklar/${evrakId}/tahakkuk`, { method: 'POST' }),
+  odemeKaydet: (evrakId, makbuzNo, odemeTarihi) =>
+    api<Evrak>(`/api/evraklar/${evrakId}/tahakkuk/odeme`, {
+      method: 'PUT',
+      body: JSON.stringify({ makbuzNo, odemeTarihi }),
+    }),
+  tarifeGetir: async () => tarifeDuzelt(await api<unknown>('/api/tarife')),
+  tarifeKaydet: async (tarife) =>
+    tarifeDuzelt(await api<unknown>('/api/tarife', { method: 'PUT', body: JSON.stringify(tarife) })),
 };
 
 export const girisYap = (kullaniciAdi: string, sifre: string): Promise<Oturum> =>
@@ -218,6 +253,17 @@ export const bildirimTekrar = (id: string): Promise<Bildirim[]> =>
 /* ------------------------------------------------------------------ */
 
 const YEREL_KULLANICI = 'İmar Personeli';
+const TARIFE_ANAHTARI = 'imar-evrak/tarife';
+
+/** Yerel kipte tarife tarayıcıda saklanır. */
+function yerelTarifeOku(): Tarife {
+  try {
+    const ham = localStorage.getItem(TARIFE_ANAHTARI);
+    return ham ? tarifeDuzelt(JSON.parse(ham)) : VARSAYILAN_TARIFE;
+  } catch {
+    return VARSAYILAN_TARIFE;
+  }
+}
 
 function yerelDepoOlustur(): Depo {
   let kayitlar = evraklariOku();
@@ -245,6 +291,8 @@ function yerelDepoOlustur(): Depo {
         gecmis: [islem(taslak.durum, 'Evrak kaydı açıldı.')],
         ekler: [],
         belgeler: [],
+        yapi: {},
+        gorusler: [],
       };
       kayitlar = [yeni, ...kayitlar];
       yaz();
@@ -287,6 +335,140 @@ function yerelDepoOlustur(): Depo {
       kayitlar = kayitlar.map((e) => (e.id === evrakId ? yeni : e));
       yaz();
       return yeni;
+    },
+    yapiKaydet: async (evrakId, yapi) => {
+      const eski = bul(evrakId);
+      const yeni: Evrak = {
+        ...eski,
+        yapi,
+        gecmis: [...eski.gecmis, islem(eski.durum, 'Yapı ve proje bilgileri güncellendi.')],
+      };
+      kayitlar = kayitlar.map((e) => (e.id === evrakId ? yeni : e));
+      yaz();
+      return yeni;
+    },
+    gorusEkle: async (evrakId, gorus) => {
+      const eski = bul(evrakId);
+      const yeniGorus: Gorus = {
+        id: yeniId(),
+        kurum: gorus.kurum ?? '',
+        konu: gorus.konu ?? '',
+        durum: gorus.durum ?? 'hazirlaniyor',
+        gonderimTarihi: gorus.gonderimTarihi ?? '',
+        cevapTarihi: gorus.cevapTarihi ?? '',
+        sayi: gorus.sayi ?? '',
+        cevapSayisi: gorus.cevapSayisi ?? '',
+        not: gorus.not ?? '',
+        olusturan: YEREL_KULLANICI,
+        tarih: new Date().toISOString(),
+      };
+      const yeni: Evrak = {
+        ...eski,
+        gorusler: [...eski.gorusler, yeniGorus],
+        gecmis: [
+          ...eski.gecmis,
+          islem(eski.durum, `Kurum görüşü kaydı açıldı: ${yeniGorus.kurum}`),
+        ],
+      };
+      kayitlar = kayitlar.map((e) => (e.id === evrakId ? yeni : e));
+      yaz();
+      return yeni;
+    },
+    gorusGuncelle: async (gorusId, gorus) => {
+      const eski = kayitlar.find((e) => e.gorusler.some((g) => g.id === gorusId));
+      if (!eski) throw new Error('Görüş kaydı bulunamadı.');
+      const oncekiDurum = eski.gorusler.find((g) => g.id === gorusId)?.durum;
+      const cevapVar = gorus.durum === 'olumlu' || gorus.durum === 'olumsuz';
+      const yeni: Evrak = {
+        ...eski,
+        gorusler: eski.gorusler.map((g) =>
+          g.id === gorusId
+            ? {
+                ...g,
+                ...gorus,
+                cevapTarihi:
+                  gorus.cevapTarihi ||
+                  (cevapVar ? new Date().toISOString().slice(0, 10) : g.cevapTarihi),
+              }
+            : g,
+        ),
+        gecmis:
+          gorus.durum && gorus.durum !== oncekiDurum
+            ? [...eski.gecmis, islem(eski.durum, `${gorus.kurum ?? 'Kurum'} görüşü güncellendi.`)]
+            : eski.gecmis,
+      };
+      kayitlar = kayitlar.map((e) => (e.id === eski.id ? yeni : e));
+      yaz();
+      return yeni;
+    },
+    gorusSil: async (gorusId) => {
+      const eski = kayitlar.find((e) => e.gorusler.some((g) => g.id === gorusId));
+      if (!eski) throw new Error('Görüş kaydı bulunamadı.');
+      const yeni: Evrak = {
+        ...eski,
+        gorusler: eski.gorusler.filter((g) => g.id !== gorusId),
+      };
+      kayitlar = kayitlar.map((e) => (e.id === eski.id ? yeni : e));
+      yaz();
+      return yeni;
+    },
+    tahakkukHesapla: async (evrakId) => {
+      const eski = bul(evrakId);
+      const sonuc = harcHesapla(eski.tur, eski.yapi, yerelTarifeOku());
+      const yeni: Evrak = {
+        ...eski,
+        tahakkuk: {
+          ...sonuc,
+          tarih: new Date().toISOString(),
+          hesaplayan: YEREL_KULLANICI,
+          makbuzNo: eski.tahakkuk?.makbuzNo,
+          odemeTarihi: eski.tahakkuk?.odemeTarihi,
+        },
+        gecmis: [
+          ...eski.gecmis,
+          islem(eski.durum, `Harç tahakkuku hesaplandı: ${sonuc.toplam.toFixed(2)} TL`),
+        ],
+      };
+      kayitlar = kayitlar.map((e) => (e.id === evrakId ? yeni : e));
+      yaz();
+      return yeni;
+    },
+    odemeKaydet: async (evrakId, makbuzNo, odemeTarihi) => {
+      const eski = bul(evrakId);
+      if (!eski.tahakkuk) throw new Error('Önce harç hesaplanmalı.');
+      const yeni: Evrak = {
+        ...eski,
+        tahakkuk: {
+          ...eski.tahakkuk,
+          makbuzNo: makbuzNo || undefined,
+          odemeTarihi:
+            odemeTarihi || (makbuzNo ? new Date().toISOString().slice(0, 10) : undefined),
+        },
+        gecmis: [
+          ...eski.gecmis,
+          islem(
+            eski.durum,
+            makbuzNo ? `Harç tahsil edildi — makbuz no ${makbuzNo}` : 'Harç tahsilat kaydı kaldırıldı',
+          ),
+        ],
+      };
+      kayitlar = kayitlar.map((e) => (e.id === evrakId ? yeni : e));
+      yaz();
+      return yeni;
+    },
+    tarifeGetir: async () => yerelTarifeOku(),
+    tarifeKaydet: async (tarife) => {
+      const kaydedilecek: Tarife = {
+        ...tarifeDuzelt(tarife),
+        guncelleme: new Date().toISOString(),
+        onaylayan: tarife.onaylandi ? YEREL_KULLANICI : '',
+      };
+      try {
+        localStorage.setItem(TARIFE_ANAHTARI, JSON.stringify(kaydedilecek));
+      } catch {
+        // Depolama kapalıysa tarife bu oturumda geçerli olur.
+      }
+      return kaydedilecek;
     },
     topluYaz: async (gelen) => {
       kayitlar = gelen;

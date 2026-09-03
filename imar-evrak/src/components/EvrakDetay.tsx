@@ -1,13 +1,26 @@
 import { useRef, useState } from 'react';
 import { DOGRULANABILIR, belgeListesi } from '../belgeler';
 import { DURUMLAR, turAdi } from '../data';
+import type { Gorus } from '../gorus';
 import { hazirlikDurumu } from '../hazirlik';
 import { ayniParsel } from '../parsel';
 import type { Durum, Ek, Evrak } from '../types';
 import { boyutGoster, gunFarki, tarihGoster, tarihSaatGoster } from '../utils';
+import { katOzeti, sayiGoster, sayiOku } from '../yapi';
+import { GorusKutusu } from './GorusKutusu';
+import { HarcKutusu } from './HarcKutusu';
 import { HazirlikKutusu } from './HazirlikKutusu';
 import { IncelemeKutusu } from './Inceleme';
 import { DurumRozeti } from './Rozet';
+
+/** Evrak türüne göre üretilebilecek resmî çıktı. */
+export type CiktiTuru = 'ruhsat' | 'iskan' | 'imar-durumu';
+
+const CIKTILAR: Partial<Record<Evrak['tur'], { tur: CiktiTuru; ad: string }>> = {
+  ruhsat: { tur: 'ruhsat', ad: 'Yapı ruhsatı yazdır' },
+  iskan: { tur: 'iskan', ad: 'Yapı kullanma izni yazdır' },
+  'imar-durumu': { tur: 'imar-durumu', ad: 'İmar durumu belgesi yazdır' },
+};
 
 interface Props {
   evrak: Evrak;
@@ -43,6 +56,19 @@ interface Props {
   onAlindiBelgesi?: () => void;
   /** Eksik belge yazısını açar; eksik yoksa çağrılmaz. */
   onEksikYazi: () => void;
+  /** Yapı ve proje bilgileri formunu açar. */
+  onYapiDuzenle: () => void;
+  /** Ruhsat / iskân / imar durumu belgesini açar. */
+  onCikti: (tur: CiktiTuru) => void;
+  onHarcHesapla: () => void;
+  onHarcOdeme: (makbuzNo: string, odemeTarihi: string) => void;
+  onHarcFisi: () => void;
+  /** Tarife ekranı (müdür). */
+  onTarife?: () => void;
+  onGorusEkle: (gorus: Partial<Gorus>) => void;
+  onGorusGuncelle: (gorusId: string, gorus: Partial<Gorus>) => void;
+  onGorusSil: (gorusId: string) => void;
+  onGorusYazisi: (gorusId: string) => void;
 }
 
 function Satir({ ad, deger }: { ad: string; deger: string }) {
@@ -76,6 +102,16 @@ export function EvrakDetay({
   onIncelemeYenile,
   onAlindiBelgesi,
   onEksikYazi,
+  onYapiDuzenle,
+  onCikti,
+  onHarcHesapla,
+  onHarcOdeme,
+  onHarcFisi,
+  onTarife,
+  onGorusEkle,
+  onGorusGuncelle,
+  onGorusSil,
+  onGorusYazisi,
 }: Props) {
   const [durum, setDurum] = useState<Durum>(evrak.durum);
   const [not, setNot] = useState('');
@@ -84,6 +120,22 @@ export function EvrakDetay({
   const secilenKod = useRef('');
 
   const parselGecmisi = ayniParsel(evraklar, evrak);
+  const y = evrak.yapi ?? {};
+  const yapiDolu = Object.keys(y).length > 0;
+  const cikti = CIKTILAR[evrak.tur];
+
+  /** Panelde gösterilecek, dolu olan yapı bilgileri. */
+  const yapiOzetSatirlari = [
+    { ad: 'Arsa alanı', deger: sayiOku(y.arsaAlani) ? `${sayiGoster(sayiOku(y.arsaAlani))} m²` : '' },
+    {
+      ad: 'İnşaat alanı',
+      deger: sayiOku(y.toplamAlan) ? `${sayiGoster(sayiOku(y.toplamAlan))} m²` : '',
+    },
+    { ad: 'Yapı sınıfı', deger: y.yapiSinifi ?? '' },
+    { ad: 'Kat adedi', deger: katOzeti(y) },
+    { ad: 'Nizam / TAKS / KAKS', deger: [y.nizam, y.taks, y.kaks].filter(Boolean).join(' · ') },
+    { ad: 'Müteahhit', deger: y.muteahhitAd ?? '' },
+  ].filter((s) => s.deger);
   const tanimlar = belgeListesi(evrak.tur);
   const teslimMi = (kod: string) => evrak.belgeler.some((b) => b.kod === kod && b.teslim);
   const belgeninEkleri = (kod: string) => evrak.ekler.filter((e) => e.belgeKodu === kod);
@@ -191,6 +243,47 @@ export function EvrakDetay({
           <Satir ad="Ada" deger={evrak.tasinmaz.ada} />
           <Satir ad="Parsel" deger={evrak.tasinmaz.parsel} />
         </dl>
+
+        <div>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs uppercase tracking-wide text-slate-500">
+              Yapı ve proje bilgileri
+            </h3>
+            <button
+              type="button"
+              onClick={onYapiDuzenle}
+              className="text-xs font-medium text-slate-700 underline"
+            >
+              {yapiDolu ? 'düzenle' : 'doldur'}
+            </button>
+          </div>
+
+          {yapiDolu ? (
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border border-slate-200 px-3 py-2 text-sm">
+              {yapiOzetSatirlari.map((s) => (
+                <div key={s.ad}>
+                  <dt className="text-xs text-slate-500">{s.ad}</dt>
+                  <dd className="text-slate-900">{s.deger}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="mt-2 text-sm text-slate-500">
+              Ruhsat, iskân ve imar durumu belgeleri bu bilgilerden doldurulur; harç hesabı da
+              buradan yapılır.
+            </p>
+          )}
+
+          {cikti && (
+            <button
+              type="button"
+              onClick={() => onCikti(cikti.tur)}
+              className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50"
+            >
+              {cikti.ad}
+            </button>
+          )}
+        </div>
 
         {parselGecmisi.length > 0 && (
           <div>
@@ -468,6 +561,22 @@ export function EvrakDetay({
             })}
           </ul>
         </div>
+
+        <GorusKutusu
+          evrak={evrak}
+          onEkle={onGorusEkle}
+          onGuncelle={onGorusGuncelle}
+          onSil={onGorusSil}
+          onYazi={onGorusYazisi}
+        />
+
+        <HarcKutusu
+          evrak={evrak}
+          onHesapla={onHarcHesapla}
+          onOdeme={onHarcOdeme}
+          onFis={onHarcFisi}
+          onTarife={onTarife}
+        />
 
         <div>
           <div className="flex items-center justify-between">

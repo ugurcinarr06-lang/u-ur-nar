@@ -1,4 +1,5 @@
 import { belgeListesi } from '../../src/belgeler.js';
+import { HATIRLATMA_GUNU as GORUS_HATIRLATMA_GUNU } from '../../src/gorus.js';
 import type { Durum, Tur } from '../../src/types.js';
 import { db } from '../db.js';
 import { bildirimEkle } from './kuyruk.js';
@@ -104,6 +105,53 @@ export function sureHatirlatmalari(): number {
   return uretilen;
 }
 
+/**
+ * Cevabı gecikmiş kurum görüşleri. Dosya, başka kurumun cevabını beklerken
+ * unutulmasın diye sorumluya haftada bir hatırlatılır.
+ */
+export function gorusHatirlatmalari(): number {
+  const satirlar = db
+    .prepare(
+      `SELECT g.id, g.kurum, g.gonderim_tarihi, g.sayi, e.id AS evrak_id, e.no, e.konu, e.sorumlu
+         FROM gorusler g JOIN evraklar e ON e.id = g.evrak_id
+        WHERE g.durum = 'gonderildi' AND g.gonderim_tarihi <> ''
+          AND e.durum NOT IN ('onaylandi','reddedildi','arsiv')`,
+    )
+    .all() as {
+    id: string;
+    kurum: string;
+    gonderim_tarihi: string;
+    sayi: string;
+    evrak_id: string;
+    no: string;
+    konu: string;
+    sorumlu: string;
+  }[];
+
+  let uretilen = 0;
+  for (const g of satirlar) {
+    const bekleyen = gunFarki(g.gonderim_tarihi);
+    if (bekleyen < GORUS_HATIRLATMA_GUNU) continue;
+    const eposta = personelEpostasi(g.sorumlu);
+    if (!eposta) continue;
+
+    const eklendi = bildirimEkle({
+      anahtar: `gorus:${g.id}:${haftaBasi()}`,
+      evrakId: g.evrak_id,
+      tur: 'gorus',
+      kanal: 'eposta',
+      hedef: eposta,
+      konu: `Kurum görüşü bekliyor: ${g.kurum} (${bekleyen} gün)`,
+      govde:
+        `${g.no} sayılı "${g.konu}" dosyasında ${g.kurum} görüşü ${bekleyen} gündür bekliyor.\n` +
+        `Yazının çıkış tarihi: ${g.gonderim_tarihi}${g.sayi ? ` · Sayı: ${g.sayi}` : ''}\n` +
+        'Kurumla yazışmayı tekrarlamak gerekebilir.',
+    });
+    if (eklendi) uretilen++;
+  }
+  return uretilen;
+}
+
 /** Müdürlere haftalık özet (pazartesi sabahı). */
 export function haftalikOzet(): number {
   const hedefler = mudurEpostalari();
@@ -187,7 +235,7 @@ export function vatandasaBildir(evrakId: string, yeniDurum: Durum, takipAdresi: 
 
 /** Zamana bağlı tüm kuralları çalıştırır. */
 export function kurallariTara(): number {
-  let uretilen = sureHatirlatmalari();
+  let uretilen = sureHatirlatmalari() + gorusHatirlatmalari();
   const simdi = new Date();
   // Haftalık özet pazartesi 08:00'den sonra bir kez üretilir.
   if (simdi.getDay() === 1 && simdi.getHours() >= 8) uretilen += haftalikOzet();

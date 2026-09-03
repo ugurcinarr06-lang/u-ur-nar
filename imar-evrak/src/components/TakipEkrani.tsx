@@ -163,6 +163,23 @@ export function TakipEkrani() {
             </div>
           )}
 
+          {sonuc.beklenenGorusler?.length > 0 && (
+            <div className="mt-3 rounded-xl bg-sky-50 p-4 ring-1 ring-sky-200">
+              <h3 className="text-sm font-semibold text-sky-900">Kurum görüşü bekleniyor</h3>
+              <p className="mt-1 text-sm text-sky-900">
+                Başvurunuz için aşağıdaki kurumlardan görüş istenmiştir; cevap gelene kadar işlem
+                sürmektedir.
+              </p>
+              <ul className="mt-2 space-y-1 pl-5 text-sm text-sky-900">
+                {sonuc.beklenenGorusler.map((k) => (
+                  <li key={k} className="list-disc">
+                    {k}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-slate-200 pt-4 text-sm">
             <div>
               <dt className="text-slate-500">Başvuru tarihi</dt>

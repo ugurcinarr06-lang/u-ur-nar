@@ -1,15 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlindiBelgesi } from './components/AlindiBelgesi';
 import { EksikBelgeYazisi } from './components/EksikBelgeYazisi';
-import { EvrakDetay } from './components/EvrakDetay';
+import { EvrakDetay, type CiktiTuru } from './components/EvrakDetay';
 import { EvrakFormu } from './components/EvrakFormu';
 import { EvrakListesi } from './components/EvrakListesi';
 import { Filtreler } from './components/Filtreler';
 import { Giris } from './components/Giris';
+import { GorusYazisi } from './components/GorusYazisi';
+import { HarcTahakkuk } from './components/HarcTahakkuk';
+import { ImarDurumuBelgesi } from './components/ImarDurumuBelgesi';
+import { IskanBelgesi } from './components/IskanBelgesi';
 import { Kullanicilar } from './components/Kullanicilar';
-import { Ozet } from './components/Ozet';
+import { Panel } from './components/Panel';
+import { RuhsatBelgesi } from './components/RuhsatBelgesi';
+import { TarifeEkrani } from './components/Tarife';
+import { YapiBilgileri } from './components/YapiBilgileri';
 import { belgeListesi } from './belgeler';
 import { KAPALI_DURUMLAR } from './data';
+import { bekliyorMu } from './gorus';
+import { VARSAYILAN_TARIFE, type Tarife } from './harc';
+import { hazirlikDurumu } from './hazirlik';
 import { yedekCoz, yedekOlustur } from './storage';
 import type { Durum, Evrak, Filtre, Taslak } from './types';
 import { csvOlustur, dosyaIndir, gecikmisMi, sonrakiEvrakNo } from './utils';
@@ -29,6 +39,20 @@ const BOS_FILTRE: Filtre = {
   sorumlu: 'hepsi',
   sadeceGeciken: false,
   sadeceAcik: false,
+  sadeceHazir: false,
+  sadeceGorusBekleyen: false,
+  sadeceOdenmemis: false,
+};
+
+/** Panelin ayrıntı bölümü açık mı — tarayıcıda hatırlanır. */
+const PANEL_ANAHTARI = 'imar-evrak/panel-acik';
+
+const panelAcikOku = (): boolean => {
+  try {
+    return localStorage.getItem(PANEL_ANAHTARI) !== '0';
+  } catch {
+    return true;
+  }
 };
 
 export default function App() {
@@ -47,6 +71,17 @@ export default function App() {
   const [alindiId, setAlindiId] = useState<string | null>(null);
   /** Seçili evrakın kurum sorgu geçmişi. */
   const [kurumGecmisi, setKurumGecmisi] = useState<KurumSorgusu[]>([]);
+  /** Yapı bilgileri formu açık olan evrak. */
+  const [yapiId, setYapiId] = useState<string | null>(null);
+  /** Açık resmî çıktı: hangi evrak, hangi belge. */
+  const [cikti, setCikti] = useState<{ id: string; tur: CiktiTuru } | null>(null);
+  /** Harç tahakkuk fişi açık olan evrak. */
+  const [fisId, setFisId] = useState<string | null>(null);
+  /** Görüş isteme yazısı açık olan kayıt. */
+  const [gorusYazi, setGorusYazi] = useState<{ evrakId: string; gorusId: string } | null>(null);
+  const [tarife, setTarife] = useState<Tarife>(VARSAYILAN_TARIFE);
+  const [tarifeAcik, setTarifeAcik] = useState(false);
+  const [panelAcik, setPanelAcik] = useState(panelAcikOku);
   const [uyari, setUyari] = useState<string | null>(null);
   const dosyaGirdisi = useRef<HTMLInputElement>(null);
 
@@ -85,6 +120,11 @@ export default function App() {
   const secili = evraklar.find((e) => e.id === seciliId) ?? null;
   const yazi = evraklar.find((e) => e.id === yaziId) ?? null;
   const alindi = evraklar.find((e) => e.id === alindiId) ?? null;
+  const yapiEvraki = evraklar.find((e) => e.id === yapiId) ?? null;
+  const ciktiEvraki = evraklar.find((e) => e.id === cikti?.id) ?? null;
+  const fisEvraki = evraklar.find((e) => e.id === fisId) ?? null;
+  const gorusEvraki = evraklar.find((e) => e.id === gorusYazi?.evrakId) ?? null;
+  const acikGorus = gorusEvraki?.gorusler.find((g) => g.id === gorusYazi?.gorusId) ?? null;
 
   /** İnceleme arka planda sürdüğü için biten sonuçları yoklayarak alırız. */
   const bekleyenInceleme = evraklar.some((e) =>
@@ -116,6 +156,11 @@ export default function App() {
         if (filtre.sorumlu !== 'hepsi' && e.sorumlu !== filtre.sorumlu) return false;
         if (filtre.sadeceAcik && KAPALI_DURUMLAR.includes(e.durum)) return false;
         if (filtre.sadeceGeciken && !gecikmisMi(e)) return false;
+        if (filtre.sadeceHazir && !(!KAPALI_DURUMLAR.includes(e.durum) && hazirlikDurumu(e).hazir)) {
+          return false;
+        }
+        if (filtre.sadeceGorusBekleyen && !e.gorusler.some(bekliyorMu)) return false;
+        if (filtre.sadeceOdenmemis && !(e.tahakkuk && !e.tahakkuk.makbuzNo)) return false;
         if (!q) return true;
         return [
           e.no,
@@ -245,6 +290,63 @@ export default function App() {
       if (!depo?.ekSil || !confirm('Bu dosya kalıcı olarak silinsin mi?')) return;
       const guncel = await depo.ekSil(ekId);
       setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
+    });
+
+  /** Sunucudan/yerelden tarifeyi bir kez alır; tahakkuk ekranları kullanır. */
+  useEffect(() => {
+    if (!depo || !hazir) return;
+    depo
+      .tarifeGetir()
+      .then(setTarife)
+      .catch(() => setTarife(VARSAYILAN_TARIFE));
+  }, [depo, hazir]);
+
+  /** Güncellenen evrakı listeye yazan ortak yardımcı. */
+  const evrakYaz = (guncel: Evrak) =>
+    setEvraklar((ö) => ö.map((e) => (e.id === guncel.id ? guncel : e)));
+
+  const yapiKaydet = (evrakId: string, yapi: Record<string, string>) =>
+    void calistir(async () => {
+      if (!depo) return;
+      evrakYaz(await depo.yapiKaydet(evrakId, yapi));
+      setYapiId(null);
+    });
+
+  const gorusEkle = (evrakId: string, gorus: Parameters<Depo['gorusEkle']>[1]) =>
+    void calistir(async () => {
+      if (!depo) return;
+      evrakYaz(await depo.gorusEkle(evrakId, gorus));
+    });
+
+  const gorusGuncelle = (gorusId: string, gorus: Parameters<Depo['gorusGuncelle']>[1]) =>
+    void calistir(async () => {
+      if (!depo) return;
+      evrakYaz(await depo.gorusGuncelle(gorusId, gorus));
+    });
+
+  const gorusSil = (gorusId: string) =>
+    void calistir(async () => {
+      if (!depo || !confirm('Bu kurum görüşü kaydı silinsin mi?')) return;
+      evrakYaz(await depo.gorusSil(gorusId));
+    });
+
+  const harcHesapla = (evrakId: string) =>
+    void calistir(async () => {
+      if (!depo) return;
+      evrakYaz(await depo.tahakkukHesapla(evrakId));
+    });
+
+  const odemeKaydet = (evrakId: string, makbuzNo: string, odemeTarihi: string) =>
+    void calistir(async () => {
+      if (!depo) return;
+      evrakYaz(await depo.odemeKaydet(evrakId, makbuzNo, odemeTarihi));
+    });
+
+  const tarifeKaydet = (yeni: Tarife) =>
+    void calistir(async () => {
+      if (!depo) return;
+      setTarife(await depo.tarifeKaydet(yeni));
+      setTarifeAcik(false);
     });
 
   const cikis = () =>
@@ -383,16 +485,20 @@ export default function App() {
         )}
 
         <div className="no-print">
-          <Ozet
+          <Panel
             evraklar={evraklar}
-            onFiltre={(tur) =>
-              setFiltre({
-                ...BOS_FILTRE,
-                sadeceAcik: tur === 'acik',
-                sadeceGeciken: tur === 'geciken',
-                durum: tur === 'eksik' ? 'eksik' : 'hepsi',
-              })
-            }
+            onFiltre={(yama) => setFiltre({ ...BOS_FILTRE, ...yama })}
+            onEvrakSec={setSeciliId}
+            acik={panelAcik}
+            onAcKapa={() => {
+              const yeni = !panelAcik;
+              setPanelAcik(yeni);
+              try {
+                localStorage.setItem(PANEL_ANAHTARI, yeni ? '1' : '0');
+              } catch {
+                // Depolama kapalıysa tercih bu oturumda geçerli olur.
+              }
+            }}
           />
         </div>
 
@@ -472,6 +578,18 @@ export default function App() {
               onIncelemeYenile={depo?.incelemeYenile ? incelemeYenile : undefined}
               onEksikYazi={() => setYaziId(secili.id)}
               onAlindiBelgesi={() => setAlindiId(secili.id)}
+              onYapiDuzenle={() => setYapiId(secili.id)}
+              onCikti={(tur) => setCikti({ id: secili.id, tur })}
+              onHarcHesapla={() => harcHesapla(secili.id)}
+              onHarcOdeme={(makbuzNo, odemeTarihi) =>
+                odemeKaydet(secili.id, makbuzNo, odemeTarihi)
+              }
+              onHarcFisi={() => setFisId(secili.id)}
+              onTarife={() => setTarifeAcik(true)}
+              onGorusEkle={(gorus) => gorusEkle(secili.id, gorus)}
+              onGorusGuncelle={gorusGuncelle}
+              onGorusSil={gorusSil}
+              onGorusYazisi={(gorusId) => setGorusYazi({ evrakId: secili.id, gorusId })}
             />
           </div>
         </div>
@@ -490,6 +608,44 @@ export default function App() {
       {hesapAcik && oturum && <Kullanicilar ben={oturum} onKapat={() => setHesapAcik(false)} />}
 
       {alindi && <AlindiBelgesi evrak={alindi} onKapat={() => setAlindiId(null)} />}
+
+      {yapiEvraki && (
+        <YapiBilgileri
+          key={yapiEvraki.id}
+          evrak={yapiEvraki}
+          onKapat={() => setYapiId(null)}
+          onKaydet={(yapi) => yapiKaydet(yapiEvraki.id, yapi)}
+        />
+      )}
+
+      {ciktiEvraki && cikti?.tur === 'ruhsat' && (
+        <RuhsatBelgesi evrak={ciktiEvraki} onKapat={() => setCikti(null)} />
+      )}
+      {ciktiEvraki && cikti?.tur === 'iskan' && (
+        <IskanBelgesi evrak={ciktiEvraki} onKapat={() => setCikti(null)} />
+      )}
+      {ciktiEvraki && cikti?.tur === 'imar-durumu' && (
+        <ImarDurumuBelgesi evrak={ciktiEvraki} onKapat={() => setCikti(null)} />
+      )}
+
+      {fisEvraki?.tahakkuk && <HarcTahakkuk evrak={fisEvraki} onKapat={() => setFisId(null)} />}
+
+      {gorusEvraki && acikGorus && (
+        <GorusYazisi
+          evrak={gorusEvraki}
+          gorus={acikGorus}
+          onKapat={() => setGorusYazi(null)}
+        />
+      )}
+
+      {tarifeAcik && (
+        <TarifeEkrani
+          tarife={tarife}
+          duzenlenebilir={!sunucuKipi || oturum?.rol === 'mudur'}
+          onKapat={() => setTarifeAcik(false)}
+          onKaydet={tarifeKaydet}
+        />
+      )}
 
       {yazi && (
         <EksikBelgeYazisi

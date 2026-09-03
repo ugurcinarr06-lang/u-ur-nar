@@ -3,16 +3,23 @@ import type { Evrak, Yedek } from './types';
 
 const ANAHTAR = 'imar-evrak/v1';
 
+/** Sürüm yükseltmelerinde eklenen alanları eski kayıtlara tamamlar. */
+const tamamla = (e: Evrak): Evrak => ({
+  ...e,
+  ekler: e.ekler ?? [],
+  belgeler: e.belgeler ?? [],
+  yapi: e.yapi ?? {},
+  gorusler: e.gorusler ?? [],
+});
+
 /** Kayıtları okur; ilk açılışta örnek veriyle başlar. */
 export function evraklariOku(): Evrak[] {
   try {
     const ham = localStorage.getItem(ANAHTAR);
     if (!ham) return ornekVeri();
     const veri = JSON.parse(ham) as unknown;
-    // Eski kayıtlarda "ekler"/"belgeler" alanı yok; okurken tamamlıyoruz.
-    return Array.isArray(veri)
-      ? (veri as Evrak[]).map((e) => ({ ...e, ekler: e.ekler ?? [], belgeler: e.belgeler ?? [] }))
-      : ornekVeri();
+    // Eski kayıtlarda yeni alanlar yok; okurken tamamlıyoruz.
+    return Array.isArray(veri) ? (veri as Evrak[]).map(tamamla) : ornekVeri();
   } catch {
     // Bozuk/erişilemez depolama: uygulama yine de açılsın.
     return ornekVeri();
@@ -45,9 +52,5 @@ export function yedekCoz(metin: string): Evrak[] {
   if (veri?.uygulama !== 'imar-evrak' || !Array.isArray(veri.evraklar)) {
     throw new Error('Dosya bir İmar Evrak yedeği değil.');
   }
-  return (veri.evraklar as Evrak[]).map((e) => ({
-    ...e,
-    ekler: e.ekler ?? [],
-    belgeler: e.belgeler ?? [],
-  }));
+  return (veri.evraklar as Evrak[]).map(tamamla);
 }

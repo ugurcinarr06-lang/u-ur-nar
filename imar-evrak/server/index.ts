@@ -24,6 +24,9 @@ import { evrakSorgulari, kurumSorgusu, sonSorgular } from './kurum/sorgu.js';
 import type { SorguTuru } from './kurum/tipler.js';
 import { belgeAdi } from '../src/belgeler.js';
 import { belgeListesi } from '../src/belgeler.js';
+import { harcHesapla, tarifeDuzelt, VARSAYILAN_TARIFE, type Tahakkuk } from '../src/harc.js';
+import { YAPI_ALAN_KODLARI, type YapiBilgisi } from '../src/yapi.js';
+import { BEKLEYEN_DURUMLAR, type Gorus, type GorusDurumu } from '../src/gorus.js';
 import type {
   BelgeDurumu,
   Durum,
@@ -64,6 +67,35 @@ interface EvrakSatir {
   pafta: string;
   sorumlu: string;
   aciklama: string;
+  yapi: string;
+}
+
+interface GorusSatir {
+  id: string;
+  evrak_id: string;
+  kurum: string;
+  konu: string;
+  durum: string;
+  gonderim_tarihi: string;
+  cevap_tarihi: string;
+  sayi: string;
+  cevap_sayisi: string;
+  aciklama: string;
+  olusturan: string;
+  tarih: string;
+}
+
+interface TahakkukSatir {
+  evrak_id: string;
+  satirlar: string;
+  toplam: number;
+  uyarilar: string;
+  tarife_onayli: number;
+  tarife_yili: number;
+  makbuz_no: string;
+  odeme_tarihi: string;
+  hesaplayan: string;
+  tarih: string;
 }
 
 interface EkSatir {
@@ -355,12 +387,54 @@ const belgeDon = (b: BelgeSatir): BelgeDurumu => ({
   dogrulamaTarihi: b.dogrulama_tarihi || undefined,
 });
 
+const gorusDon = (g: GorusSatir): Gorus => ({
+  id: g.id,
+  kurum: g.kurum,
+  konu: g.konu,
+  durum: g.durum as GorusDurumu,
+  gonderimTarihi: g.gonderim_tarihi,
+  cevapTarihi: g.cevap_tarihi,
+  sayi: g.sayi,
+  cevapSayisi: g.cevap_sayisi,
+  not: g.aciklama,
+  olusturan: g.olusturan,
+  tarih: g.tarih,
+});
+
+const tahakkukDon = (t: TahakkukSatir): Tahakkuk => ({
+  satirlar: JSON.parse(t.satirlar) as Tahakkuk['satirlar'],
+  toplam: t.toplam,
+  uyarilar: JSON.parse(t.uyarilar) as string[],
+  tarifeOnayli: t.tarife_onayli === 1,
+  tarifeYili: t.tarife_yili,
+  tarih: t.tarih,
+  hesaplayan: t.hesaplayan,
+  makbuzNo: t.makbuz_no || undefined,
+  odemeTarihi: t.odeme_tarihi || undefined,
+});
+
+/** Yapı bilgisi sütunu bozuk JSON içerse bile kayıt açılabilmeli. */
+function yapiCoz(ham: string): YapiBilgisi {
+  try {
+    const veri = JSON.parse(ham || '{}') as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(veri)
+        .filter(([k]) => YAPI_ALAN_KODLARI.has(k))
+        .map(([k, v]) => [k, String(v ?? '')]),
+    );
+  } catch {
+    return {};
+  }
+}
+
 function evrakDon(
   satir: EvrakSatir,
   islemler: IslemSatir[],
   ekler: EkSatir[],
   belgeler: BelgeSatir[],
   incelemeler?: Map<string, Inceleme>,
+  gorusler: GorusSatir[] = [],
+  tahakkuk?: TahakkukSatir,
 ): Evrak {
   return {
     id: satir.id,
@@ -389,6 +463,9 @@ function evrakDon(
     })),
     ekler: ekler.map((e) => ekDon(e, incelemeler ? incelemeler.get(e.id) : incelemeOku(e.id))),
     belgeler: belgeler.map(belgeDon),
+    yapi: yapiCoz(satir.yapi),
+    gorusler: gorusler.map(gorusDon),
+    tahakkuk: tahakkuk ? tahakkukDon(tahakkuk) : undefined,
   };
 }
 
@@ -439,6 +516,10 @@ app.get('/api/evraklar', korumali, (_istek, yanit) => {
   const islemler = grupla(db.prepare('SELECT * FROM islemler ORDER BY tarih').all() as IslemSatir[]);
   const ekler = grupla(db.prepare('SELECT * FROM ekler ORDER BY tarih').all() as EkSatir[]);
   const belgeler = grupla(db.prepare('SELECT * FROM belgeler').all() as BelgeSatir[]);
+  const gorusler = grupla(db.prepare('SELECT * FROM gorusler ORDER BY tarih').all() as GorusSatir[]);
+  const tahakkuklar = new Map(
+    (db.prepare('SELECT * FROM tahakkuklar').all() as TahakkukSatir[]).map((t) => [t.evrak_id, t]),
+  );
   const incelemeler = incelemeHaritasi();
   yanit.json(
     evraklar.map((e) =>
@@ -448,6 +529,8 @@ app.get('/api/evraklar', korumali, (_istek, yanit) => {
         ekler.get(e.id) ?? [],
         belgeler.get(e.id) ?? [],
         incelemeler,
+        gorusler.get(e.id) ?? [],
+        tahakkuklar.get(e.id),
       ),
     ),
   );
@@ -541,7 +624,13 @@ function tekEvrak(id: string): Evrak {
   const belgeler = db
     .prepare('SELECT * FROM belgeler WHERE evrak_id = ?')
     .all(id) as BelgeSatir[];
-  return evrakDon(satir, islemler, ekler, belgeler);
+  const gorusler = db
+    .prepare('SELECT * FROM gorusler WHERE evrak_id = ? ORDER BY tarih')
+    .all(id) as GorusSatir[];
+  const tahakkuk = db.prepare('SELECT * FROM tahakkuklar WHERE evrak_id = ?').get(id) as
+    | TahakkukSatir
+    | undefined;
+  return evrakDon(satir, islemler, ekler, belgeler, undefined, gorusler, tahakkuk);
 }
 
 app.put('/api/evraklar/:id/belgeler', korumali, (istek: Istek, yanit) => {
@@ -623,6 +712,299 @@ app.put('/api/evraklar/:id/belgeler/dogrulama', korumali, (istek: Istek, yanit) 
       ad,
     );
   }
+  yanit.json(tekEvrak(id));
+});
+
+/* ------------------------------------------------------------------ */
+/* Yapı ve proje bilgileri (ruhsat/iskân/imar durumu belgeleri için)   */
+/* ------------------------------------------------------------------ */
+
+/** Bir alana yazılabilecek en uzun metin; plan notu gibi alanlar için geniş. */
+const EN_UZUN_ALAN = 2000;
+
+app.put('/api/evraklar/:id/yapi', korumali, (istek: Istek, yanit) => {
+  const id = String(istek.params.id);
+  const evrak = db.prepare('SELECT durum FROM evraklar WHERE id = ?').get(id) as
+    | { durum: string }
+    | undefined;
+  if (!evrak) {
+    yanit.status(404).json({ hata: 'Evrak bulunamadı.' });
+    return;
+  }
+  const gelen = (istek.body as { yapi?: Record<string, unknown> }).yapi ?? {};
+  // Yalnızca tanımlı alanlar kaydedilir: istemci kendi anahtarını ekleyemez.
+  const temiz: YapiBilgisi = {};
+  for (const [kod, deger] of Object.entries(gelen)) {
+    if (!YAPI_ALAN_KODLARI.has(kod)) continue;
+    const metin = String(deger ?? '').slice(0, EN_UZUN_ALAN).trim();
+    if (metin) temiz[kod] = metin;
+  }
+
+  const simdi = new Date().toISOString();
+  db.prepare('UPDATE evraklar SET yapi = ?, guncelleme = ? WHERE id = ?').run(
+    JSON.stringify(temiz),
+    simdi,
+    id,
+  );
+  db.prepare(
+    'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(yeniId(), id, simdi, evrak.durum, 'Yapı ve proje bilgileri güncellendi.', istek.kullanici!.ad);
+  yanit.json(tekEvrak(id));
+});
+
+/* ------------------------------------------------------------------ */
+/* Kurum görüşleri                                                     */
+/* ------------------------------------------------------------------ */
+
+const GORUS_DURUMLARI: GorusDurumu[] = [
+  'hazirlaniyor',
+  'gonderildi',
+  'olumlu',
+  'olumsuz',
+  'iptal',
+];
+
+/** "2026-09-03" biçiminde değilse boş döner; serbest metin tarihe girmesin. */
+const tarihTemiz = (deger: unknown): string => {
+  const metin = String(deger ?? '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(metin) ? metin : '';
+};
+
+const kisaMetin = (deger: unknown, sinir = 200): string =>
+  String(deger ?? '').slice(0, sinir).trim();
+
+app.post('/api/evraklar/:id/gorusler', korumali, (istek: Istek, yanit) => {
+  const id = String(istek.params.id);
+  const evrak = db.prepare('SELECT durum FROM evraklar WHERE id = ?').get(id) as
+    | { durum: string }
+    | undefined;
+  if (!evrak) {
+    yanit.status(404).json({ hata: 'Evrak bulunamadı.' });
+    return;
+  }
+  const gelen = istek.body as Partial<Gorus>;
+  const kurum = kisaMetin(gelen.kurum);
+  if (!kurum) {
+    yanit.status(400).json({ hata: 'Görüş sorulacak kurum adı zorunlu.' });
+    return;
+  }
+
+  const simdi = new Date().toISOString();
+  const durum = GORUS_DURUMLARI.includes(gelen.durum as GorusDurumu)
+    ? (gelen.durum as GorusDurumu)
+    : 'hazirlaniyor';
+  const gorusId = yeniId();
+  db.prepare(
+    `INSERT INTO gorusler (id, evrak_id, kurum, konu, durum, gonderim_tarihi, cevap_tarihi,
+       sayi, cevap_sayisi, aciklama, olusturan, tarih)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    gorusId,
+    id,
+    kurum,
+    kisaMetin(gelen.konu),
+    durum,
+    tarihTemiz(gelen.gonderimTarihi),
+    tarihTemiz(gelen.cevapTarihi),
+    kisaMetin(gelen.sayi, 60),
+    kisaMetin(gelen.cevapSayisi, 60),
+    kisaMetin(gelen.not, 1000),
+    istek.kullanici!.ad,
+    simdi,
+  );
+  db.prepare(
+    'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(yeniId(), id, simdi, evrak.durum, `Kurum görüşü kaydı açıldı: ${kurum}`, istek.kullanici!.ad);
+  yanit.status(201).json(tekEvrak(id));
+});
+
+app.put('/api/gorusler/:id', korumali, (istek: Istek, yanit) => {
+  const gorusId = String(istek.params.id);
+  const eski = db.prepare('SELECT * FROM gorusler WHERE id = ?').get(gorusId) as
+    | GorusSatir
+    | undefined;
+  if (!eski) {
+    yanit.status(404).json({ hata: 'Görüş kaydı bulunamadı.' });
+    return;
+  }
+  const gelen = istek.body as Partial<Gorus>;
+  const durum = GORUS_DURUMLARI.includes(gelen.durum as GorusDurumu)
+    ? (gelen.durum as GorusDurumu)
+    : (eski.durum as GorusDurumu);
+  const kurum = kisaMetin(gelen.kurum) || eski.kurum;
+  const cevapTarihi = tarihTemiz(gelen.cevapTarihi);
+  // Cevap geldi işaretlenip tarih girilmediyse bugünü yazarız.
+  const cevapVar = durum === 'olumlu' || durum === 'olumsuz';
+
+  db.prepare(
+    `UPDATE gorusler SET kurum = ?, konu = ?, durum = ?, gonderim_tarihi = ?, cevap_tarihi = ?,
+       sayi = ?, cevap_sayisi = ?, aciklama = ? WHERE id = ?`,
+  ).run(
+    kurum,
+    kisaMetin(gelen.konu),
+    durum,
+    tarihTemiz(gelen.gonderimTarihi),
+    cevapTarihi || (cevapVar ? new Date().toISOString().slice(0, 10) : ''),
+    kisaMetin(gelen.sayi, 60),
+    kisaMetin(gelen.cevapSayisi, 60),
+    kisaMetin(gelen.not, 1000),
+    gorusId,
+  );
+
+  // Durum değişimi dosyanın geçmişine düşer: kim ne zaman cevabı işledi.
+  if (durum !== eski.durum) {
+    const evrak = db.prepare('SELECT durum FROM evraklar WHERE id = ?').get(eski.evrak_id) as {
+      durum: string;
+    };
+    const anlam: Record<GorusDurumu, string> = {
+      hazirlaniyor: 'yazı hazırlanıyor',
+      gonderildi: 'yazı gönderildi, cevap bekleniyor',
+      olumlu: 'olumlu görüş geldi',
+      olumsuz: 'olumsuz görüş geldi',
+      iptal: 'görüşe gerek kalmadı',
+    };
+    db.prepare(
+      'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
+    ).run(
+      yeniId(),
+      eski.evrak_id,
+      new Date().toISOString(),
+      evrak.durum,
+      `${kurum}: ${anlam[durum]}`,
+      istek.kullanici!.ad,
+    );
+  }
+  yanit.json(tekEvrak(eski.evrak_id));
+});
+
+app.delete('/api/gorusler/:id', korumali, (istek: Istek, yanit) => {
+  const eski = db.prepare('SELECT * FROM gorusler WHERE id = ?').get(String(istek.params.id)) as
+    | GorusSatir
+    | undefined;
+  if (!eski) {
+    yanit.status(404).json({ hata: 'Görüş kaydı bulunamadı.' });
+    return;
+  }
+  db.prepare('DELETE FROM gorusler WHERE id = ?').run(eski.id);
+  yanit.json(tekEvrak(eski.evrak_id));
+});
+
+/* ------------------------------------------------------------------ */
+/* Harç tarifesi ve tahakkuk                                           */
+/* ------------------------------------------------------------------ */
+
+const TARIFE_ANAHTARI = 'harc-tarifesi';
+
+function tarifeOku() {
+  const satir = db.prepare('SELECT deger FROM ayarlar WHERE anahtar = ?').get(TARIFE_ANAHTARI) as
+    | { deger: string }
+    | undefined;
+  if (!satir) return VARSAYILAN_TARIFE;
+  try {
+    return tarifeDuzelt(JSON.parse(satir.deger));
+  } catch {
+    return VARSAYILAN_TARIFE;
+  }
+}
+
+app.get('/api/tarife', korumali, (_istek, yanit) => {
+  yanit.json(tarifeOku());
+});
+
+app.put('/api/tarife', korumali, sadeceMudur, (istek: Istek, yanit) => {
+  // Tarife düzeltilerek yazılır: bilinmeyen taban/eksik alan kabul edilmez.
+  const tarife = tarifeDuzelt(istek.body);
+  const simdi = new Date().toISOString();
+  const kaydedilecek = {
+    ...tarife,
+    guncelleme: simdi,
+    onaylayan: tarife.onaylandi ? istek.kullanici!.ad : '',
+  };
+  db.prepare(
+    `INSERT INTO ayarlar (anahtar, deger, guncelleyen, tarih) VALUES (?, ?, ?, ?)
+     ON CONFLICT (anahtar) DO UPDATE SET deger = excluded.deger,
+       guncelleyen = excluded.guncelleyen, tarih = excluded.tarih`,
+  ).run(TARIFE_ANAHTARI, JSON.stringify(kaydedilecek), istek.kullanici!.ad, simdi);
+  yanit.json(kaydedilecek);
+});
+
+/**
+ * Tahakkuku SUNUCU hesaplar: tutarlar istemciden alınmaz, kayıtlı yapı
+ * bilgileri ile müdürün onayladığı tarifeden yeniden üretilir.
+ */
+app.post('/api/evraklar/:id/tahakkuk', korumali, (istek: Istek, yanit) => {
+  const id = String(istek.params.id);
+  const satir = db.prepare('SELECT tur, durum, yapi FROM evraklar WHERE id = ?').get(id) as
+    | { tur: string; durum: string; yapi: string }
+    | undefined;
+  if (!satir) {
+    yanit.status(404).json({ hata: 'Evrak bulunamadı.' });
+    return;
+  }
+
+  const tarife = tarifeOku();
+  const sonuc = harcHesapla(satir.tur as Tur, yapiCoz(satir.yapi), tarife);
+  const simdi = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO tahakkuklar (evrak_id, satirlar, toplam, uyarilar, tarife_onayli, tarife_yili,
+       hesaplayan, tarih)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (evrak_id) DO UPDATE SET satirlar = excluded.satirlar, toplam = excluded.toplam,
+       uyarilar = excluded.uyarilar, tarife_onayli = excluded.tarife_onayli,
+       tarife_yili = excluded.tarife_yili, hesaplayan = excluded.hesaplayan, tarih = excluded.tarih`,
+  ).run(
+    id,
+    JSON.stringify(sonuc.satirlar),
+    sonuc.toplam,
+    JSON.stringify(sonuc.uyarilar),
+    sonuc.tarifeOnayli ? 1 : 0,
+    sonuc.tarifeYili,
+    istek.kullanici!.ad,
+    simdi,
+  );
+  db.prepare(
+    'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(
+    yeniId(),
+    id,
+    simdi,
+    satir.durum,
+    `Harç tahakkuku hesaplandı: ${sonuc.toplam.toFixed(2)} TL`,
+    istek.kullanici!.ad,
+  );
+  yanit.json(tekEvrak(id));
+});
+
+/** Tahsilat kaydı: makbuz numarası ve ödeme tarihi. */
+app.put('/api/evraklar/:id/tahakkuk/odeme', korumali, (istek: Istek, yanit) => {
+  const id = String(istek.params.id);
+  const mevcut = db.prepare('SELECT * FROM tahakkuklar WHERE evrak_id = ?').get(id) as
+    | TahakkukSatir
+    | undefined;
+  if (!mevcut) {
+    yanit.status(404).json({ hata: 'Önce harç hesaplanmalı.' });
+    return;
+  }
+  const { makbuzNo, odemeTarihi } = istek.body as { makbuzNo?: string; odemeTarihi?: string };
+  const no = kisaMetin(makbuzNo, 60);
+  const tarih = tarihTemiz(odemeTarihi) || (no ? new Date().toISOString().slice(0, 10) : '');
+  db.prepare('UPDATE tahakkuklar SET makbuz_no = ?, odeme_tarihi = ? WHERE evrak_id = ?').run(
+    no,
+    tarih,
+    id,
+  );
+
+  const evrak = db.prepare('SELECT durum FROM evraklar WHERE id = ?').get(id) as { durum: string };
+  db.prepare(
+    'INSERT INTO islemler (id, evrak_id, tarih, durum, aciklama, kullanici) VALUES (?, ?, ?, ?, ?, ?)',
+  ).run(
+    yeniId(),
+    id,
+    new Date().toISOString(),
+    evrak.durum,
+    no ? `Harç tahsil edildi — makbuz no ${no}` : 'Harç tahsilat kaydı kaldırıldı',
+    istek.kullanici!.ad,
+  );
   yanit.json(tekEvrak(id));
 });
 
@@ -1065,6 +1447,17 @@ app.post('/api/takip', (istek, yanit) => {
     (Date.now() - new Date(`${satir.gelis_tarihi}T00:00:00`).getTime()) / 86_400_000,
   );
 
+  // Bekleyen kurum görüşleri gecikmenin nedenini açıklar. Yalnızca kurum adı
+  // verilir; yazışma sayısı, iç not ve personel adı bu uçtan çıkmaz.
+  const beklenenGorusler = (
+    db.prepare('SELECT kurum, durum FROM gorusler WHERE evrak_id = ?').all(satir.id) as {
+      kurum: string;
+      durum: GorusDurumu;
+    }[]
+  )
+    .filter((g) => BEKLEYEN_DURUMLAR.includes(g.durum))
+    .map((g) => g.kurum);
+
   const sonuc: TakipSonucu = {
     no: satir.no,
     konu: satir.konu,
@@ -1076,6 +1469,7 @@ app.post('/api/takip', (istek, yanit) => {
     kalanGun: satir.hedef_gun - gecenGun,
     eksikBelgeler,
     uygunsuzBelgeler,
+    beklenenGorusler,
   };
   yanit.json(sonuc);
 });

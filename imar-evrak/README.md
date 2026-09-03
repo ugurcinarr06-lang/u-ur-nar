@@ -27,8 +27,12 @@ tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
   kalan gün rozeti ve gecikmiş dosya uyarısı.
 - **Arama ve filtre:** evrak no / konu / başvuran / ada-parsel araması,
   durum–tür–personel filtreleri, "sadece süresi geçenler".
-- **Özet kartları:** toplam, açık dosya, eksik evrak, süresi geçen
-  (tıklayınca ilgili filtre uygulanır).
+- **Gösterge paneli:** altı sayaç (açık dosya, süresi geçen, karara hazır,
+  eksik evrak, kurum görüşü bekleyen, tahsil edilmemiş harç) ve altında
+  "önce bunlara bakın" listesi, bekleyen kurum görüşleri, süre performansı
+  (ortalama sonuçlanma, süresinde biten oranı, son altı ayın gelen/sonuçlanan
+  grafiği), durum ve tür dağılımı, personel yükü. Her kutu tıklanınca liste
+  süzülür. Ayrıntı bölümü gizlenebilir; tercih tarayıcıda saklanır.
 - **Belge kontrol listesi:** evrak türüne göre istenen belgeler listelenir
   (ör. yapı ruhsatında tapu, imar durumu, mimari/statik proje, zemin etüdü,
   yapı denetim sözleşmesi…). Teslim alınanlar işaretlenir, "7/14 zorunlu
@@ -58,6 +62,22 @@ tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
   (ada/parsel tutmuyorsa engel, başvuran malik değilse uyarı, yetki belgesi
   süresi dolmuşsa engel). Bağlantı **kapalı gelir**; kurum protokolü
   tamamlandığında yalnızca ayar girilir — bkz. `docs/entegrasyon.md`.
+- **Yapı ve proje bilgileri:** arsa/plan şartları, yapı bilgileri, müteahhit,
+  şantiye şefi, yapı denetim ve proje müellifleri tek formda toplanır. Alanlar
+  `src/yapi.ts` içindeki tanımdan üretilir; belediyenizin formu farklıysa
+  düzenlenecek tek yer orasıdır.
+- **Resmî çıktılar:** aynı bilgilerden **yapı ruhsatı**, **yapı kullanma izin
+  belgesi (iskân)** ve **imar durumu belgesi** doldurulup yazdırılır. Memur
+  yalnızca belge no ve tarihini girer; boş kalan alanlar yazdırmadan önce
+  uyarı olarak listelenir. Bkz. "Resmî belge çıktıları".
+- **Harç ve ücret hesabı:** evrak türüne uyan kalemler, belediyenin kendi
+  tarife cetvelinden hesaplanır; tahakkuk satır satır gösterilir, makbuz
+  numarasıyla tahsilat kaydedilir ve vezneye götürülecek **tahakkuk fişi**
+  basılır. Bkz. "Harç ve ücretler".
+- **Kurum görüşü takibi:** DSİ, Karayolları, TEDAŞ, Koruma Kurulu gibi
+  kurumlardan istenen görüşler dosyanın içinde takip edilir; kaç gündür
+  beklediği görünür, gecikirse sorumluya hatırlatma gider, kuruma gidecek
+  **görüş isteme yazısı** üretilir. Bkz. "Kurum görüşü takibi".
 - **Parsel geçmişi:** evrak detayında aynı ada/parsele ait diğer başvurular
   listelenir ("bu parselde 2026'da ruhsat verilmiş, sonra şikâyet gelmiş").
   Tıklayınca o kayda geçilir; "listede göster" ile parselin tüm evrakları
@@ -225,6 +245,76 @@ doğrulamaz. Tapu kaydının doğruluğu TAKBİS'ten, müteahhit yetkisi YAMBİS
 e-Devlet çıktıları doğrulama kodundan teyit edilir. Buradaki kontrol, memurun
 gözden kaçırabileceği tutarsızlıkları önüne getiren bir **ön elemedir**.
 
+## Resmî belge çıktıları
+
+Memurun en çok vakit harcadığı iş, dosyadaki bilgileri Word'deki forma
+elle geçirmekti. Artık aynı bilgiler dosyada duruyor ve belge oradan
+doldurularak basılıyor:
+
+| Evrak türü | Üretilen belge |
+| --- | --- |
+| Yapı ruhsatı başvurusu | **Yapı ruhsatı** (yapının yeri, yapıya ait bilgiler, müteahhit/şantiye şefi/yapı denetim, proje müellifleri, harç özeti, imza blokları, 2/5 yıl hükümsüzlük notu) |
+| Yapı kullanma izni (iskân) | **Yapı kullanma izin belgesi** (dayanak ruhsat, başlama/bitiş tarihleri, EKB sınıfı, SGK ilişiksizlik, kısmi iskân) |
+| İmar durumu belgesi | **İmar durumu belgesi** (taşınmaz bilgileri, plan ve yapılaşma şartları, çekme mesafeleri, plan notları, bir yıl geçerlilik) |
+
+Belge no ve tarihi çıktı ekranının üstünden girilir; kurum adı bir kez yazılır
+ve tarayıcıda saklanır. Zorunlu alanlardan biri boşsa yazdırmadan önce hangi
+alanların eksik olduğu listelenir — belge yine basılabilir, memur elle
+tamamlayabilir. Çıktının altında **"imzalanmadan hüküm ifade etmez"** notu
+vardır: sistem ruhsat vermez, memurun imzası verir.
+
+Yazdırma sırasında sayfadaki diğer her şey gizlenir; kâğıda yalnızca belge
+gider.
+
+## Harç ve ücretler
+
+Tutarlar kanunda değil, **belediye meclisinin tarife cetvelinde** yazar. Bu
+yüzden sistem yalnızca hesap yöntemini bilir; rakamları müdür girer.
+
+**Tarife ekranı** (harç kutusundaki "tarife" bağlantısı) her kalem için şunları
+tutar: ad, hesap tabanı, birim fiyat, hangi evrak türlerinde çıkacağı, fişte
+görünecek açıklama. Kalem eklenip çıkarılabilir. Hesap tabanları:
+
+| Taban | Çarpan |
+| --- | --- |
+| Sabit tutar | belge başına |
+| Toplam inşaat alanı / emsale konu alan | m² |
+| Konut alanı / ticari alan | m² (konut alanı boşsa toplamdan ticari düşülür) |
+| Arsa alanı | m² |
+| Bağımsız bölüm sayısı | adet |
+| Parselde karşılanamayan otopark | adet (gereken − parselde karşılanan) |
+| Yapı maliyetinin yüzdesi | inşaat alanı × yapı sınıfının m² birim maliyeti |
+
+Kurulumda 2464 sayılı Belediye Gelirleri Kanunu'ndaki harç/pay adlarıyla
+12 kalem gelir, **birim fiyatları sıfırdır**. Tarife doldurulup
+"bu tarife belediyemizin yürürlükteki cetvelidir" işaretlenene kadar üretilen
+tahakkuklar *örnek* sayılır: harç kutusunda ve basılan fişte
+**"bilgi amaçlıdır, tahsilata esas alınamaz"** uyarısı çıkar.
+
+Tutarlar **sunucuda** hesaplanır; istemciden gelen bir tutar kaydedilmez.
+Tarifeyi yalnızca müdür değiştirebilir (uç de denetler, memur `403` alır).
+Tahsilat, makbuz numarası girilerek kaydedilir ve işlem geçmişine yazılır;
+tahsil edilmemiş dosyalar panelde ayrı bir sayaçta toplanır.
+
+## Kurum görüşü takibi
+
+Dosyaların çoğu başka bir kurumun cevabını beklerken tıkanır. Bu bölüm o
+beklemeyi görünür kılar:
+
+- Dosyaya kurum, konu, giden yazı sayısı ve çıkış tarihiyle görüş kaydı
+  açılır (sık kullanılan 18 kurum listeden seçilir, başka kurum elle yazılır).
+- Durumlar: *yazı hazırlanıyor → cevap bekleniyor → olumlu / olumsuz görüş*
+  (ya da *gerek kalmadı*). Cevap işaretlendiğinde tarih kendiliğinden düşer,
+  değişiklik dosyanın işlem geçmişine yazılır.
+- Cevap beklenenlerde **kaç gündür beklediği** yazar; 15 günü geçenler kırmızı
+  görünür ve sorumlu personele haftada bir e-posta hatırlatması gider.
+- Her kayıttan kuruma gidecek **görüş isteme yazısı** üretilir (parsel
+  bilgileri ve ekler listesiyle birlikte).
+- Panelde "kurum görüşü bekleyenler" kutusu, en uzun bekleyenden başlayarak
+  hepsini listeler.
+- Vatandaş takip ekranında yalnızca **kurum adları** görünür ("Karayolları
+  görüşü bekleniyor") — yazışma sayıları, notlar ve personel adı çıkmaz.
+
 ## Bildirimler
 
 Sunucu saatte bir kuralları tarar, üretilen mesajları kuyruğa alır ve gönderir.
@@ -235,6 +325,7 @@ haftada bir, yaklaşan süre günde bir hatırlatılır).
 | --- | --- | --- |
 | Hedef süreye 3 gün veya daha az kaldı | sorumlu personel | e-posta |
 | Hedef süre aşıldı (haftada bir) | sorumlu + müdürler | e-posta |
+| Kurum görüşü 15 gündür cevapsız (haftada bir) | sorumlu personel | e-posta |
 | Pazartesi 08:00 haftalık özet | müdürler | e-posta |
 | Durum "eksik belge"ye geçti | başvuran | SMS |
 | Başvuru onaylandı / reddedildi | başvuran | SMS |
@@ -332,6 +423,10 @@ ağda kalmalıdır. Ters vekil (nginx vb.) ile bu ayrım yapılır.
 | Dosya ekleme | ✓ | ✓ |
 | Belge işaretleme, eksik belge yazısı | ✓ | ✓ |
 | Belge kararı (uygun / uygun değil) | ✓ | ✓ |
+| Yapı bilgileri, resmî belge çıktısı | ✓ | ✓ |
+| Kurum görüşü ekleme/güncelleme | ✓ | ✓ |
+| Harç hesaplama, tahsilat kaydı | ✓ | ✓ |
+| Harç tarifesini değiştirme | — | ✓ |
 | Ek silme | yalnızca kendi yüklediğini | tümünü |
 | Evrak silme | — | ✓ |
 | Personel ekleme/silme | — | ✓ |
@@ -370,6 +465,7 @@ server/
     kuyruk.ts              Bildirim kuyruğu, tekrar deneme
     saglayici.ts           SMTP ve HTTP (SMS) göndericileri
   db.ts                    SQLite şeması, göçler, ilk kurulum
+                           (evraklar.yapi, gorusler, tahakkuklar, ayarlar)
   auth.ts                  scrypt şifre özeti, oturum sabitleri
   ai/
     inceleme.ts            İnceleme kuyruğu ve sonuç kayıtları
@@ -384,6 +480,10 @@ src/
   types.ts                 Evrak, İşlem, Filtre tipleri
   data.ts                  Durum/tür sabitleri, örnek veri
   belgeler.ts              Türe göre istenen belge listeleri
+  yapi.ts                  Yapı/parsel alan tanımları (belge çıktılarının kaynağı)
+  harc.ts                  Tarife tipleri ve harç hesaplama motoru
+  gorus.ts                 Kurum görüşü tipleri, kurum listesi, bekleme hesabı
+  panel.ts                 Gösterge paneli hesapları
   hazirlik.ts              Dosya karara hazır mı hesabı
   parsel.ts                Aynı ada/parseldeki evrakları eşleştirme
   storage.ts               localStorage okuma-yazma, yedek çözümleme
@@ -398,7 +498,17 @@ src/
     Inceleme.tsx           Otomatik inceleme rozeti ve bulgu listesi
     Giris.tsx              Giriş ekranı
     Kullanicilar.tsx       Hesap ve personel yönetimi
-    Ozet.tsx               Özet kartları
+    Panel.tsx              Gösterge paneli (sayaçlar, iş listesi, grafikler)
+    Belge.tsx              Resmî belge çıktılarının ortak çerçevesi
+    RuhsatBelgesi.tsx      Yapı ruhsatı çıktısı
+    IskanBelgesi.tsx       Yapı kullanma izin belgesi çıktısı
+    ImarDurumuBelgesi.tsx  İmar durumu belgesi çıktısı
+    YapiBilgileri.tsx      Yapı ve proje bilgileri formu
+    HarcKutusu.tsx         Dosyadaki harç tahakkuku
+    HarcTahakkuk.tsx       Yazdırılabilir tahakkuk fişi
+    Tarife.tsx             Harç tarifesi ekranı (müdür)
+    GorusKutusu.tsx        Kurum görüşleri bölümü
+    GorusYazisi.tsx        Kuruma gidecek görüş isteme yazısı
     Filtreler.tsx          Arama ve filtre çubuğu
     EvrakListesi.tsx       Tablo
     EvrakDetay.tsx         Yan panel: bilgiler, belge listesi, ekler, geçmiş
@@ -421,3 +531,6 @@ kurumsal entegrasyon iznine bağlıdır.
 - SOAP/XML dönen kurum servisleri için adaptöre XML desteği (gerçek şema
   geldiğinde).
 - Eksik belge istendiğinde süre sayacının durması.
+- Havale/zimmet akışı: her personele "bende bekleyen dosyalar" kutusu.
+- Ek dosyalardan çıkarılan metnin saklanıp dosya içinde aranabilmesi.
+- Aylık istatistik raporunun Excel'e aktarılması.
