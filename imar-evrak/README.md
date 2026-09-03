@@ -53,6 +53,10 @@ tarayıcı depolaması kullanılır. Arayüz her iki kipte aynıdır.
   teslim alınmayan, uygun bulunmayan, engel çıkan ve karar bekleyen belgeler
   ayrı ayrı sayılır. Listede de rozet olarak görünür (*Karara hazır*,
   *3 eksik belge*, *2 engel*…).
+- **Parsel geçmişi:** evrak detayında aynı ada/parsele ait diğer başvurular
+  listelenir ("bu parselde 2026'da ruhsat verilmiş, sonra şikâyet gelmiş").
+  Tıklayınca o kayda geçilir; "listede göster" ile parselin tüm evrakları
+  ana listede süzülür.
 - **Hatırlatmalar ve bildirimler:** hedef süreye 3 gün kalanlar sorumlusuna,
   süresi aşılanlar sorumlusuna ve müdüre e-posta ile bildirilir; pazartesi
   sabahı müdüre haftalık özet gider. Eksik belge ve sonuçlanma durumlarında
@@ -331,6 +335,7 @@ src/
   data.ts                  Durum/tür sabitleri, örnek veri
   belgeler.ts              Türe göre istenen belge listeleri
   hazirlik.ts              Dosya karara hazır mı hesabı
+  parsel.ts                Aynı ada/parseldeki evrakları eşleştirme
   storage.ts               localStorage okuma-yazma, yedek çözümleme
   utils.ts                 Tarih/gün hesapları, evrak no, CSV, indirme
   veri/
@@ -362,5 +367,4 @@ kurumsal entegrasyon iznine bağlıdır.
 ## Sonraki adımlar
 
 - TAKBİS/YAMBİS entegrasyonu (kurumsal izin gerektirir).
-- Parsel bazlı geçmiş: aynı ada/parseldeki tüm evraklar bir arada.
 - Eksik belge istendiğinde süre sayacının durması.

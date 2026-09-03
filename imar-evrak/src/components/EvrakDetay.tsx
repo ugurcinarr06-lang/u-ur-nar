@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { DOGRULANABILIR, belgeListesi } from '../belgeler';
 import { DURUMLAR, turAdi } from '../data';
 import { hazirlikDurumu } from '../hazirlik';
+import { ayniParsel } from '../parsel';
 import type { Durum, Ek, Evrak } from '../types';
 import { boyutGoster, gunFarki, tarihGoster, tarihSaatGoster } from '../utils';
 import { HazirlikKutusu } from './HazirlikKutusu';
@@ -10,6 +11,12 @@ import { DurumRozeti } from './Rozet';
 
 interface Props {
   evrak: Evrak;
+  /** Aynı parseldeki diğer kayıtları göstermek için tüm liste. */
+  evraklar: Evrak[];
+  /** Parsel geçmişinden başka bir evraka geçiş. */
+  onEvrakSec: (id: string) => void;
+  /** Bu parselin kayıtlarını ana listede süzer. */
+  onParselFiltre: () => void;
   onKapat: () => void;
   onDuzenle: () => void;
   onSil: () => void;
@@ -45,6 +52,9 @@ function Satir({ ad, deger }: { ad: string; deger: string }) {
 
 export function EvrakDetay({
   evrak,
+  evraklar,
+  onEvrakSec,
+  onParselFiltre,
   onKapat,
   onDuzenle,
   onSil,
@@ -67,6 +77,7 @@ export function EvrakDetay({
   /** Dosya seçme penceresinin hangi belge için açıldığı; boş: genel ek. */
   const secilenKod = useRef('');
 
+  const parselGecmisi = ayniParsel(evraklar, evrak);
   const tanimlar = belgeListesi(evrak.tur);
   const teslimMi = (kod: string) => evrak.belgeler.some((b) => b.kod === kod && b.teslim);
   const belgeninEkleri = (kod: string) => evrak.ekler.filter((e) => e.belgeKodu === kod);
@@ -168,6 +179,43 @@ export function EvrakDetay({
           <Satir ad="Ada" deger={evrak.tasinmaz.ada} />
           <Satir ad="Parsel" deger={evrak.tasinmaz.parsel} />
         </dl>
+
+        {parselGecmisi.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs uppercase tracking-wide text-slate-500">
+                Bu parseldeki diğer evraklar ({parselGecmisi.length})
+              </h3>
+              <button
+                type="button"
+                onClick={onParselFiltre}
+                className="text-xs font-medium text-slate-700 underline"
+              >
+                listede göster
+              </button>
+            </div>
+            <ul className="mt-2 divide-y divide-slate-100 rounded-lg border border-slate-200">
+              {parselGecmisi.map((e) => (
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    onClick={() => onEvrakSec(e.id)}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-slate-50"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm text-slate-900">{e.konu}</span>
+                      <span className="block text-xs text-slate-500">
+                        <span className="font-mono">{e.no}</span> · {turAdi(e.tur)} ·{' '}
+                        {tarihGoster(e.gelisTarihi)}
+                      </span>
+                    </span>
+                    <DurumRozeti durum={e.durum} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {evrak.takipKodu && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2">

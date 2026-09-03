@@ -402,6 +402,14 @@ export default function App() {
             <EvrakDetay
               key={secili.id}
               evrak={secili}
+              evraklar={evraklar}
+              onEvrakSec={setSeciliId}
+              onParselFiltre={() =>
+                setFiltre({
+                  ...BOS_FILTRE,
+                  arama: `${secili.tasinmaz.ada}/${secili.tasinmaz.parsel}`,
+                })
+              }
               silinebilir={!sunucuKipi || oturum?.rol === 'mudur'}
               onKapat={() => setSeciliId(null)}
               onDuzenle={() => setForm(secili)}
