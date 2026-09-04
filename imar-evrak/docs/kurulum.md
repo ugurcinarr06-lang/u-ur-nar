@@ -283,9 +283,117 @@ hatalı gönderimler orada tekrar denenebilir.
   ile doğar. Belediyenizin form düzeni farklıysa ilgili bileşen
   (`src/components/RuhsatBelgesi.tsx` vb.) düzenlenir.
 
-## Windows notları
+## Windows sunucuya kurulum
 
-Uygulama Windows'ta da çalışır (`npm run basla`). Servis olarak çalıştırmak
-için [NSSM](https://nssm.cc) veya Görev Zamanlayıcı kullanılabilir. Yedekleme
-betiği Windows'ta da çalışır; `IMAR_DB` yolunu `C:\imar-evrak\veri\...`
-biçiminde verin.
+Uygulama Windows'ta da tam olarak çalışır. Aşağıdaki adımlar Windows Server
+2016+ (veya Windows 10/11) için yazılmıştır.
+
+### 1. Node.js kurun
+
+[nodejs.org](https://nodejs.org)'dan **22 LTS** sürümünü indirip kurun (`.msi`).
+Kurulumdan sonra PowerShell'de doğrulayın:
+
+```powershell
+node --version   # v22.x.x görünmeli
+```
+
+### 2. Uygulamayı kopyalayın
+
+USB'den veya paylaşımdan `imar-evrak` klasörünü sunucuya kopyalayın, örn.
+`C:\imar-evrak\uygulama\imar-evrak`. Klasörün içinde `node_modules`, `dist`
+ve `veri\tessdata` **zaten hazır olmalı** (geliştirme makinenizde
+`npm install`, `npm run build`, `npm run ocr-kur` çalıştırıp öyle
+kopyalayın) — sunucuda internet olmasa bile çalışır.
+
+Sunucuda da internet varsa, kopyalamadan önce `node_modules` ve `dist`
+klasörlerini silip orada `npm ci && npm run build` çalıştırmak daha
+sağlamdır (o makineye özel, temiz bir kurulum olur).
+
+### 3. Bir kez elle deneyin
+
+PowerShell'i **yönetici olarak** açıp klasöre gidin:
+
+```powershell
+cd C:\imar-evrak\uygulama\imar-evrak
+$env:IMAR_DB = "C:\imar-evrak\veri\imar-evrak.db"
+$env:IMAR_ADMIN_SIFRE = "güçlü-bir-şifre"
+npm run basla
+```
+
+`İmar Evrak sunucusu: http://localhost:3200` yazısını görün, tarayıcıda
+deneyin, sonra `Ctrl+C` ile durdurun. Bu adım, servis kurulumundan önce
+temel bir şeyin bozuk olmadığını doğrular.
+
+### 4. NSSM ile kalıcı servis kurun
+
+Terminal penceresi kapanınca uygulamanın da kapanmaması için
+[NSSM](https://nssm.cc/download) kullanılır. `nssm.exe`'yi indirip PATH'e
+ekleyin veya tam yolla çağırın:
+
+```powershell
+nssm install ImarEvrak
+```
+
+Açılan pencerede:
+
+- **Path:** `node.exe`'nin tam yolu (`where node` ile bulunur, genelde
+  `C:\Program Files\nodejs\node.exe`)
+- **Startup directory:** `C:\imar-evrak\uygulama\imar-evrak`
+- **Arguments:** `node_modules\tsx\dist\cli.mjs server\index.ts`
+  (build zaten yapıldığı için her başlatmada `npm run build` çalıştırmaya
+  gerek yok — doğrudan sunucuyu başlatır)
+- **Environment** sekmesinde, her satıra bir tane olacak şekilde:
+  ```
+  PORT=3200
+  IMAR_DB=C:\imar-evrak\veri\imar-evrak.db
+  IMAR_ADMIN_SIFRE=güçlü-bir-şifre
+  ```
+  (İlk açılıştan sonra `IMAR_ADMIN_SIFRE` satırı silinebilir.)
+
+"Install service" ile kaydedin, sonra:
+
+```powershell
+nssm start ImarEvrak
+Get-Service ImarEvrak      # "Running" görünmeli
+```
+
+Sunucu yeniden başlasa bile servis otomatik ayağa kalkar. Günlükler için:
+`nssm set ImarEvrak AppStdout C:\imar-evrak\gunluk.log` ve `AppStderr` aynı
+şekilde ayarlanabilir.
+
+### 5. Güvenlik duvarı
+
+Yalnızca iç ağdan erişilecekse Windows Defender Güvenlik Duvarı'nda 3200
+portunu **yalnızca kurum ağı için** açın:
+
+```powershell
+New-NetFirewallRule -DisplayName "İmar Evrak" -Direction Inbound `
+  -LocalPort 3200 -Protocol TCP -Action Allow -Profile Domain,Private
+```
+
+Vatandaş takip sayfası dışarı açılacaksa (IIS/nginx ters vekille ayrı bir
+konudur), yalnızca `/takip` ve `POST /api/takip` yollarının dışarı
+verildiğinden emin olun — bkz. "5. Ters vekil" bölümündeki nginx örneği,
+aynı mantık IIS URL Rewrite ile de kurulabilir.
+
+### 6. Yedekleme (Görev Zamanlayıcı)
+
+`scripts/yedek.mjs` saf JavaScript'tir, `tsx` gerektirmez — Görev
+Zamanlayıcı'da doğrudan çalıştırılabilir:
+
+- **Program:** `C:\Program Files\nodejs\node.exe`
+- **Argümanlar:** `scripts\yedek.mjs`
+- **Başlangıç konumu:** `C:\imar-evrak\uygulama\imar-evrak`
+- **Ortam değişkeni:** `IMAR_DB=C:\imar-evrak\veri\imar-evrak.db` (görev
+  özelliklerinde ortam değişkeni tanımlanamıyorsa, `yedek.mjs`'i çağıran
+  küçük bir `.bat` dosyası içine `set IMAR_DB=...` satırıyla yazılabilir)
+
+Her gece 02:00'de tetiklenecek şekilde tetikleyici eklenir.
+
+### 7. Şifre sıfırlama
+
+```powershell
+cd C:\imar-evrak\uygulama\imar-evrak
+npm run sifre-sifirla                      # kullanıcıları listeler
+npm run sifre-sifirla -- admin             # yeni şifre üretir
+```
