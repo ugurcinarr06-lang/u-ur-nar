@@ -1,3 +1,11 @@
+# Bağımlılıklar ve derleme çıktıları
+node_modules
+dist
+dist-ssr
+dev-dist
+dist-tek
+*.local
+
 # SQLite veritabanı ve yedekleri (yalnızca proje kökündeki veri klasörü)
 /veri/
 *.db
@@ -7,3 +15,9 @@
 # OCR dil verisi (npm run ocr-kur ile indirilir)
 /veri/tessdata/
 *.traineddata
+
+# Editör dizinleri
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
