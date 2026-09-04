@@ -1,0 +1,55 @@
+@import 'tailwindcss';
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Arka planı gövde sınıfına değil CSS'e bağlıyoruz: tek dosya olarak
+   gömüldüğünde <body> etiketi dışarıdan üretilebiliyor. */
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: #f1f5f9;
+  color: #0f172a;
+  margin: 0;
+}
+
+/* Yazdırma: araç çubukları ve paneller gizlenir, sadece liste kalır. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  /*
+   * Eksik belge yazısı açıkken yalnızca yazı basılır. Katman sayfanın
+   * herhangi bir yerinde olabildiği için gizleme "visibility" ile yapılır:
+   * kök görünmez olur, katman ve içindekiler yeniden görünür kılınır.
+   */
+  body.yazi-modu #root {
+    visibility: hidden;
+  }
+
+  body.yazi-modu .yazi-katman,
+  body.yazi-modu .yazi-katman * {
+    visibility: visible;
+  }
+
+  body.yazi-modu .yazi-katman {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+    background: none !important;
+    padding: 0 !important;
+  }
+
+  .yazi-kagit {
+    max-width: none !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+}

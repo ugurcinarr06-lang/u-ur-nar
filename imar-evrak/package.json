@@ -1,0 +1,51 @@
+{
+  "name": "imar-evrak",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20 <24"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "build:tek": "vite build --config vite.config.tek.ts",
+    "sunucu": "tsx watch server/index.ts",
+    "basla": "npm run build && tsx server/index.ts",
+    "ocr-kur": "node scripts/ocr-dil-indir.mjs",
+    "yedek": "node scripts/yedek.mjs",
+    "sifre-sifirla": "tsx scripts/sifre-sifirla.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.123.0",
+    "@napi-rs/canvas": "^1.0.8",
+    "better-sqlite3": "^13.0.3",
+    "cookie": "^2.0.1",
+    "express": "^5.2.1",
+    "multer": "^2.3.0",
+    "nodemailer": "^9.1.1",
+    "pdfjs-dist": "^6.3.289",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tesseract.js": "^7.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
+    "@types/nodemailer": "^8.0.1",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "smtp-server": "^3.19.7",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.13",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "vite-plugin-singlefile": "^2.3.3"
+  }
+}
